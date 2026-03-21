@@ -5,6 +5,7 @@ members = [
     "crates/wrightty-core",
     "crates/wrightty-server",
     "crates/wrightty-client",
+    "crates/wrightty-bridge-wezterm",
 ]
 
 [workspace.package]

@@ -2364,6 +2364,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "wrightty-bridge-wezterm"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "jsonrpsee",
+ "serde",
+ "serde_json",
+ "thiserror 1.0.69",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "wrightty-protocol",
+]
+
+[[package]]
 name = "wrightty-client"
 version = "0.1.0"
 dependencies = [
