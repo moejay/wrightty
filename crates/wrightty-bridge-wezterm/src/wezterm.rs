@@ -76,6 +76,28 @@ fn wezterm_cmd(cli_args: &[&str]) -> Command {
     cmd
 }
 
+/// Check if WezTerm is reachable. Returns Ok(()) if `wezterm cli list` succeeds.
+pub async fn health_check() -> Result<(), WezTermError> {
+    let output = wezterm_cmd(&["list", "--format", "json"])
+        .output()
+        .await?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(WezTermError::CommandFailed(format!("WezTerm not reachable: {stderr}")));
+    }
+
+    // Verify we got valid JSON with at least one pane.
+    let panes: Vec<WezTermPane> = serde_json::from_slice(&output.stdout)
+        .map_err(|e| WezTermError::ParseError(e.to_string()))?;
+
+    if panes.is_empty() {
+        return Err(WezTermError::CommandFailed("WezTerm has no panes".to_string()));
+    }
+
+    Ok(())
+}
+
 /// List all panes via `wezterm cli list --format json`.
 pub async fn list_panes() -> Result<Vec<WezTermPane>, WezTermError> {
     let output = wezterm_cmd(&["list", "--format", "json"])
