@@ -594,7 +594,198 @@ Query the active terminal modes. Useful for understanding what the running appli
 
 ---
 
-### 2.6 Events
+### 2.6 Recording
+
+Record terminal sessions, actions, and screen captures.
+
+| Method | Description |
+|--------|-------------|
+| `Recording.startSession` | Start recording raw PTY I/O (asciicast format) |
+| `Recording.stopSession` | Stop session recording and return the data |
+| `Recording.startActions` | Start recording wrightty API calls as a replayable script |
+| `Recording.stopActions` | Stop action recording and return the script |
+| `Recording.captureScreen` | Capture a single screen frame (append to a screen recording) |
+| `Recording.startScreenCapture` | Start periodic screen capture |
+| `Recording.stopScreenCapture` | Stop screen capture and return all frames |
+
+#### `Recording.startSession`
+
+Begin recording all PTY output bytes with timestamps. Compatible with [asciicast v2](https://docs.asciinema.org/manual/asciicast/v2/) format — can be played back with `asciinema play`.
+
+**Params:**
+```json
+{
+  "sessionId": "a1b2c3d4...",
+  "includeInput": true          // optional, also record input events (default: false)
+}
+```
+
+**Result:**
+```json
+{
+  "recordingId": "rec_001"
+}
+```
+
+#### `Recording.stopSession`
+
+Stop a session recording and return the asciicast data.
+
+**Params:**
+```json
+{
+  "recordingId": "rec_001"
+}
+```
+
+**Result:**
+```json
+{
+  "format": "asciicast-v2",
+  "data": "{\"version\":2,\"width\":80,\"height\":24,...}\n[0.5,\"o\",\"$ \"]\n[1.2,\"o\",\"hello\\r\\n\"]\n",
+  "duration": 12.5,
+  "events": 42
+}
+```
+
+The `data` field contains the full asciicast v2 file as a string. Each line after the header is `[timestamp, type, data]`:
+- `"o"` = output (PTY → screen)
+- `"i"` = input (user → PTY, only if `includeInput` was true)
+
+#### `Recording.startActions`
+
+Begin recording all wrightty API calls (sendKeys, sendText, etc.) as a replayable script. Like Playwright's codegen.
+
+**Params:**
+```json
+{
+  "sessionId": "a1b2c3d4...",
+  "format": "python"           // "python", "json", or "cli"
+}
+```
+
+**Result:**
+```json
+{
+  "recordingId": "rec_002"
+}
+```
+
+#### `Recording.stopActions`
+
+Stop action recording and return the generated script.
+
+**Params:**
+```json
+{
+  "recordingId": "rec_002"
+}
+```
+
+**Result (format=python):**
+```json
+{
+  "format": "python",
+  "data": "from wrightty import Terminal\n\nterm = Terminal.connect()\nterm.send_text('ls -la\\n')\nterm.wait_for('$')\nterm.send_keys('Ctrl+c')\nterm.close()\n",
+  "actions": 3,
+  "duration": 8.2
+}
+```
+
+**Result (format=json):**
+```json
+{
+  "format": "json",
+  "data": [
+    { "time": 0.0, "method": "Input.sendText", "params": { "text": "ls -la\n" } },
+    { "time": 2.1, "method": "Screen.waitForText", "params": { "pattern": "$" } },
+    { "time": 5.5, "method": "Input.sendKeys", "params": { "keys": ["Ctrl+c"] } }
+  ],
+  "actions": 3,
+  "duration": 8.2
+}
+```
+
+**Result (format=cli):**
+```json
+{
+  "format": "cli",
+  "data": "wrightty send-text 'ls -la\\n'\nwrightty wait-for '$'\nwrightty send-keys Ctrl+c\n",
+  "actions": 3,
+  "duration": 8.2
+}
+```
+
+#### `Recording.captureScreen`
+
+Capture a single screen frame. Can be called at any time. Frames can be collected into a GIF/video later.
+
+**Params:**
+```json
+{
+  "sessionId": "a1b2c3d4...",
+  "format": "svg"              // "svg", "text", or "png"
+}
+```
+
+**Result:**
+```json
+{
+  "frameId": 0,
+  "timestamp": 1679000000000,
+  "format": "svg",
+  "data": "<svg ...>"
+}
+```
+
+#### `Recording.startScreenCapture`
+
+Start automatically capturing screen frames at a fixed interval.
+
+**Params:**
+```json
+{
+  "sessionId": "a1b2c3d4...",
+  "intervalMs": 500,           // capture every 500ms (default: 1000)
+  "format": "svg"              // "svg", "text", or "png"
+}
+```
+
+**Result:**
+```json
+{
+  "recordingId": "rec_003"
+}
+```
+
+#### `Recording.stopScreenCapture`
+
+Stop screen capture and return all captured frames.
+
+**Params:**
+```json
+{
+  "recordingId": "rec_003"
+}
+```
+
+**Result:**
+```json
+{
+  "frames": [
+    { "frameId": 0, "timestamp": 0, "data": "<svg ...>" },
+    { "frameId": 1, "timestamp": 500, "data": "<svg ...>" },
+    { "frameId": 2, "timestamp": 1000, "data": "<svg ...>" }
+  ],
+  "duration": 1.0,
+  "frameCount": 3,
+  "format": "svg"
+}
+```
+
+---
+
+### 2.7 Events
 
 Events use a unified subscription model. Instead of per-event subscribe/unsubscribe methods, clients use a single `Events.subscribe` method and specify which event types they want.
 

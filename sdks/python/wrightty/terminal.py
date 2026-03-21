@@ -230,3 +230,78 @@ class Terminal:
     def get_info(self) -> dict:
         """Get server info and capabilities."""
         return self._client.request("Wrightty.getInfo")
+
+    # --- Recording ---
+
+    def start_session_recording(self, include_input: bool = False) -> str:
+        """Start recording raw PTY I/O (asciicast v2 format).
+
+        Returns a recording ID. Stop with stop_session_recording().
+        The recording can be played back with `asciinema play`.
+        """
+        result = self._client.request(
+            "Recording.startSession",
+            {"sessionId": self._session_id, "includeInput": include_input},
+        )
+        return result["recordingId"]
+
+    def stop_session_recording(self, recording_id: str) -> dict:
+        """Stop a session recording and return asciicast data.
+
+        Returns dict with keys: format, data, duration, events.
+        Save `data` to a .cast file for asciinema playback.
+        """
+        return self._client.request("Recording.stopSession", {"recordingId": recording_id})
+
+    def start_action_recording(self, format: str = "python") -> str:
+        """Start recording wrightty API calls as a replayable script.
+
+        Args:
+            format: "python", "json", or "cli"
+
+        Returns a recording ID. Stop with stop_action_recording().
+        """
+        result = self._client.request(
+            "Recording.startActions",
+            {"sessionId": self._session_id, "format": format},
+        )
+        return result["recordingId"]
+
+    def stop_action_recording(self, recording_id: str) -> dict:
+        """Stop action recording and return the generated script.
+
+        Returns dict with keys: format, data, actions, duration.
+        """
+        return self._client.request("Recording.stopActions", {"recordingId": recording_id})
+
+    def capture_screen(self, format: str = "svg") -> dict:
+        """Capture a single screen frame.
+
+        Returns dict with keys: frameId, timestamp, format, data.
+        """
+        return self._client.request(
+            "Recording.captureScreen",
+            {"sessionId": self._session_id, "format": format},
+        )
+
+    def start_screen_recording(self, interval_ms: int = 1000, format: str = "svg") -> str:
+        """Start periodic screen capture.
+
+        Args:
+            interval_ms: Capture interval in milliseconds (default: 1000)
+            format: "svg", "text", or "png"
+
+        Returns a recording ID. Stop with stop_screen_recording().
+        """
+        result = self._client.request(
+            "Recording.startScreenCapture",
+            {"sessionId": self._session_id, "intervalMs": interval_ms, "format": format},
+        )
+        return result["recordingId"]
+
+    def stop_screen_recording(self, recording_id: str) -> dict:
+        """Stop screen capture and return all frames.
+
+        Returns dict with keys: frames, duration, frameCount, format.
+        """
+        return self._client.request("Recording.stopScreenCapture", {"recordingId": recording_id})

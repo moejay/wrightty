@@ -190,6 +190,58 @@ Modifiers: `Ctrl+c`, `Alt+x`, `Shift+Tab`
 
 Native emulator mode uses `"sessionId":"0"` for the active terminal. Session create/destroy is not supported — the emulator manages its own sessions.
 
+## Recording
+
+Three types of recording:
+
+### Session recording (asciicast)
+Records raw PTY I/O with timestamps. Compatible with `asciinema play`.
+
+```python
+rec_id = term.start_session_recording(include_input=True)
+# ... do stuff ...
+result = term.stop_session_recording(rec_id)
+with open("session.cast", "w") as f:
+    f.write(result["data"])
+# Play back: asciinema play session.cast
+```
+
+### Action recording (script generation)
+Records wrightty API calls as a replayable Python/JSON/CLI script. Like Playwright codegen.
+
+```python
+rec_id = term.start_action_recording(format="python")
+# ... do stuff ...
+result = term.stop_action_recording(rec_id)
+print(result["data"])  # prints a Python script that replays the actions
+```
+
+### Screen capture
+Capture individual frames or record periodic screenshots.
+
+```python
+# Single frame
+frame = term.capture_screen(format="svg")
+
+# Periodic capture
+rec_id = term.start_screen_recording(interval_ms=500, format="svg")
+# ... do stuff ...
+result = term.stop_screen_recording(rec_id)
+# result["frames"] is a list of SVG frames with timestamps
+```
+
+### CLI
+```bash
+wrightty record -o session.cast            # Ctrl+C to stop
+wrightty record-actions -o script.py       # generates Python script
+wrightty record-actions --format cli       # generates shell commands
+```
+
+### MCP tools
+- `start_recording` — starts session + action recording
+- `stop_recording` — stops and returns asciicast data + Python script
+- `capture_screen_frame` — single SVG snapshot
+
 ## Tips
 
 - Use `term.run()` for most commands — it sends the command and waits for the prompt to return

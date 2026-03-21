@@ -157,5 +157,54 @@ def discover():
         click.echo(f"  {s['url']}  {s['implementation']} v{s['version']}")
 
 
+@main.command()
+@click.option("--output", "-o", default=None, help="Output file (default: recording.cast)")
+@click.option("--include-input", is_flag=True, help="Also record input keystrokes")
+@click.pass_context
+def record(ctx, output, include_input):
+    """Record a terminal session (asciicast format). Press Ctrl+C to stop."""
+    output = output or "recording.cast"
+    term = _connect(ctx)
+    try:
+        rec_id = term.start_session_recording(include_input=include_input)
+        click.echo(f"Recording... (press Ctrl+C to stop, saving to {output})")
+        try:
+            import signal
+            signal.pause()
+        except KeyboardInterrupt:
+            pass
+        result = term.stop_session_recording(rec_id)
+        with open(output, "w") as f:
+            f.write(result["data"])
+        click.echo(f"Saved {result['events']} events, {result['duration']:.1f}s to {output}")
+    finally:
+        term.close()
+
+
+@main.command("record-actions")
+@click.option("--output", "-o", default=None, help="Output file")
+@click.option("--format", "fmt", default="python", type=click.Choice(["python", "json", "cli"]))
+@click.pass_context
+def record_actions(ctx, output, fmt):
+    """Record wrightty actions as a replayable script. Press Ctrl+C to stop."""
+    ext = {"python": ".py", "json": ".json", "cli": ".sh"}[fmt]
+    output = output or f"recording{ext}"
+    term = _connect(ctx)
+    try:
+        rec_id = term.start_action_recording(format=fmt)
+        click.echo(f"Recording actions... (press Ctrl+C to stop, saving to {output})")
+        try:
+            import signal
+            signal.pause()
+        except KeyboardInterrupt:
+            pass
+        result = term.stop_action_recording(rec_id)
+        with open(output, "w") as f:
+            f.write(result["data"] if isinstance(result["data"], str) else json.dumps(result["data"], indent=2))
+        click.echo(f"Saved {result['actions']} actions, {result['duration']:.1f}s to {output}")
+    finally:
+        term.close()
+
+
 if __name__ == "__main__":
     main()
