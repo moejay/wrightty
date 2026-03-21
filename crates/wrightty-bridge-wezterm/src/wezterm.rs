@@ -51,10 +51,34 @@ pub enum WezTermError {
     Io(#[from] std::io::Error),
 }
 
+/// Build a `Command` for wezterm CLI.
+///
+/// Checks `WEZTERM_CMD` env var for the command to use.
+/// Supports flatpak: set `WEZTERM_CMD=flatpak run --command=wezterm org.wezfurlong.wezterm`
+///
+/// Falls back to just `wezterm` if not set.
+fn wezterm_cmd(cli_args: &[&str]) -> Command {
+    let cmd_str = std::env::var("WEZTERM_CMD")
+        .unwrap_or_else(|_| "wezterm".to_string());
+
+    let parts: Vec<&str> = cmd_str.split_whitespace().collect();
+    let (program, prefix_args) = parts.split_first().expect("WEZTERM_CMD must not be empty");
+
+    let mut cmd = Command::new(program);
+    for arg in prefix_args {
+        cmd.arg(arg);
+    }
+    // Always prepend "cli" subcommand.
+    cmd.arg("cli");
+    for arg in cli_args {
+        cmd.arg(arg);
+    }
+    cmd
+}
+
 /// List all panes via `wezterm cli list --format json`.
 pub async fn list_panes() -> Result<Vec<WezTermPane>, WezTermError> {
-    let output = Command::new("wezterm")
-        .args(["cli", "list", "--format", "json"])
+    let output = wezterm_cmd(&["list", "--format", "json"])
         .output()
         .await?;
 
@@ -71,8 +95,8 @@ pub async fn list_panes() -> Result<Vec<WezTermPane>, WezTermError> {
 
 /// Get the text content of a pane via `wezterm cli get-text --pane-id N`.
 pub async fn get_text(pane_id: u64) -> Result<String, WezTermError> {
-    let output = Command::new("wezterm")
-        .args(["cli", "get-text", "--pane-id", &pane_id.to_string()])
+    let pane_str = pane_id.to_string();
+    let output = wezterm_cmd(&["get-text", "--pane-id", &pane_str])
         .output()
         .await?;
 
@@ -86,15 +110,8 @@ pub async fn get_text(pane_id: u64) -> Result<String, WezTermError> {
 
 /// Send text to a pane via `wezterm cli send-text --pane-id N --no-paste "text"`.
 pub async fn send_text(pane_id: u64, text: &str) -> Result<(), WezTermError> {
-    let output = Command::new("wezterm")
-        .args([
-            "cli",
-            "send-text",
-            "--pane-id",
-            &pane_id.to_string(),
-            "--no-paste",
-            text,
-        ])
+    let pane_str = pane_id.to_string();
+    let output = wezterm_cmd(&["send-text", "--pane-id", &pane_str, "--no-paste", text])
         .output()
         .await?;
 
@@ -108,8 +125,7 @@ pub async fn send_text(pane_id: u64, text: &str) -> Result<(), WezTermError> {
 
 /// Spawn a new pane via `wezterm cli spawn`. Returns the new pane ID.
 pub async fn spawn_pane() -> Result<u64, WezTermError> {
-    let output = Command::new("wezterm")
-        .args(["cli", "spawn"])
+    let output = wezterm_cmd(&["spawn"])
         .output()
         .await?;
 
@@ -129,8 +145,8 @@ pub async fn spawn_pane() -> Result<u64, WezTermError> {
 
 /// Kill a pane via `wezterm cli kill-pane --pane-id N`.
 pub async fn kill_pane(pane_id: u64) -> Result<(), WezTermError> {
-    let output = Command::new("wezterm")
-        .args(["cli", "kill-pane", "--pane-id", &pane_id.to_string()])
+    let pane_str = pane_id.to_string();
+    let output = wezterm_cmd(&["kill-pane", "--pane-id", &pane_str])
         .output()
         .await?;
 
