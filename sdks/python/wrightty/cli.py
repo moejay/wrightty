@@ -11,7 +11,7 @@ from wrightty.terminal import Terminal
 
 
 @click.group()
-@click.option("--url", default="ws://127.0.0.1:9420", help="Wrightty server URL")
+@click.option("--url", default=None, help="Wrightty server URL (default: auto-discover)")
 @click.option("--session", default=None, help="Session ID (default: auto-detect)")
 @click.pass_context
 def main(ctx, url, session):
@@ -144,6 +144,17 @@ def size(ctx):
         click.echo(f"{cols}x{rows}")
     finally:
         term.close()
+
+
+@main.command()
+def discover():
+    """Discover running wrightty servers on ports 9420-9440."""
+    servers = Terminal.discover()
+    if not servers:
+        click.echo("No wrightty servers found.")
+        return
+    for s in servers:
+        click.echo(f"  {s['url']}  {s['implementation']} v{s['version']}")
 
 
 if __name__ == "__main__":

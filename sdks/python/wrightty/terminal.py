@@ -6,7 +6,10 @@ import re
 import time
 from typing import Any
 
-from wrightty.client import WrighttyClient
+from wrightty.client import WrighttyClient, WrighttyError
+
+PORT_RANGE_START = 9420
+PORT_RANGE_END = 9440
 
 
 class Terminal:
@@ -29,13 +32,59 @@ class Terminal:
         self._session_id = session_id
         self._prompt_pattern = r"[$#>%]\s*$"
 
+    @staticmethod
+    def discover(host: str = "127.0.0.1") -> list[dict]:
+        """Scan for running wrightty servers on ports 9420-9440.
+
+        Returns a list of dicts with keys: url, version, implementation, capabilities.
+
+        Example:
+            servers = Terminal.discover()
+            for s in servers:
+                print(f"{s['url']} — {s['implementation']}")
+            # ws://127.0.0.1:9420 — alacritty-wrightty
+            # ws://127.0.0.1:9421 — wrightty-bridge-wezterm
+        """
+        found = []
+        for port in range(PORT_RANGE_START, PORT_RANGE_END + 1):
+            url = f"ws://{host}:{port}"
+            try:
+                client = WrighttyClient.connect(url)
+                info = client.request("Wrightty.getInfo")
+                client.close()
+                found.append({
+                    "url": url,
+                    "port": port,
+                    "version": info.get("version", "unknown"),
+                    "implementation": info.get("implementation", "unknown"),
+                    "capabilities": info.get("capabilities", {}),
+                })
+            except (ConnectionError, ConnectionRefusedError, OSError, WrighttyError):
+                continue
+        return found
+
     @classmethod
     def connect(
         cls,
-        url: str = "ws://127.0.0.1:9420",
+        url: str | None = None,
         session_id: str | None = None,
     ) -> Terminal:
-        """Connect to an existing wrightty server."""
+        """Connect to a wrightty server.
+
+        If no URL is given, auto-discovers the first available server
+        by scanning ports 9420-9440.
+        """
+        if url is None:
+            servers = cls.discover()
+            if not servers:
+                raise ConnectionError(
+                    "No wrightty server found. Start one with:\n"
+                    "  alacritty --wrightty\n"
+                    "  cargo run -p wrightty-server\n"
+                    "  cargo run -p wrightty-bridge-wezterm"
+                )
+            url = servers[0]["url"]
+
         client = WrighttyClient.connect(url)
 
         if session_id is None:

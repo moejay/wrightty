@@ -1,4 +1,6 @@
 from wrightty.terminal import Terminal
 
-__all__ = ["Terminal"]
+discover = Terminal.discover
+
+__all__ = ["Terminal", "discover"]
 __version__ = "0.1.0"
