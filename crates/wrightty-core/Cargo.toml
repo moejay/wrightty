@@ -1,0 +1,18 @@
+[package]
+name = "wrightty-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Core terminal engine for Wrightty"
+
+[dependencies]
+wrightty-protocol = { path = "../wrightty-protocol" }
+alacritty_terminal = "0.25.1"
+vte = { version = "0.15", features = ["ansi"] }
+portable-pty = "0.9"
+tokio = { version = "1", features = ["full"] }
+uuid = { version = "1", features = ["v4"] }
+regex = "1"
+log = "0.4"
+thiserror = "2"
+base64 = "0.22"

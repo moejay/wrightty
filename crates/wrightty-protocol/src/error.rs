@@ -1,0 +1,8 @@
+pub const SESSION_NOT_FOUND: i32 = 1001;
+pub const SESSION_DESTROYED: i32 = 1002;
+pub const WAIT_TIMEOUT: i32 = 1003;
+pub const INVALID_PATTERN: i32 = 1004;
+pub const SPAWN_FAILED: i32 = 1005;
+pub const NOT_SUPPORTED: i32 = 1006;
+pub const MAX_SESSIONS_REACHED: i32 = 1007;
+pub const SUBSCRIPTION_NOT_FOUND: i32 = 1008;

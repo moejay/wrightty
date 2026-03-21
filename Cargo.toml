@@ -1,0 +1,29 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/wrightty-protocol",
+    "crates/wrightty-core",
+    "crates/wrightty-server",
+    "crates/wrightty-client",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+
+# Root package for integration tests
+[package]
+name = "wrightty-tests"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[dev-dependencies]
+wrightty-protocol = { path = "crates/wrightty-protocol" }
+wrightty-core = { path = "crates/wrightty-core" }
+wrightty-server = { path = "crates/wrightty-server" }
+wrightty-client = { path = "crates/wrightty-client" }
+jsonrpsee = { version = "0.24", features = ["server"] }
+tokio = { version = "1", features = ["full"] }
+serde_json = "1"
