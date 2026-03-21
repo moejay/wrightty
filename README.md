@@ -162,6 +162,25 @@ text = term.screenshot("text")   # str
 cols, rows = term.get_size()
 info = term.get_info()
 
+# Recording — session (asciicast, compatible with asciinema)
+rec_id = term.start_session_recording(include_input=True)
+term.run("make build")
+result = term.stop_session_recording(rec_id)
+open("build.cast", "w").write(result["data"])  # asciinema play build.cast
+
+# Recording — actions (generates replayable scripts)
+rec_id = term.start_action_recording(format="python")
+term.send_text("echo hello\n")
+term.send_keys("Ctrl+c")
+result = term.stop_action_recording(rec_id)
+print(result["data"])  # prints a Python script that replays these actions
+
+# Recording — screen capture
+frame = term.capture_screen("svg")  # single frame
+rec_id = term.start_screen_recording(interval_ms=500)
+# ... do stuff ...
+result = term.stop_screen_recording(rec_id)  # list of SVG frames
+
 term.close()
 ```
 
@@ -187,9 +206,15 @@ wrightty wait-for "error" --regex
 # Screenshots
 wrightty screenshot --format svg -o terminal.svg
 
+# Recording
+wrightty record -o session.cast             # Ctrl+C to stop, asciinema-compatible
+wrightty record-actions -o script.py        # generates replayable Python script
+wrightty record-actions --format cli        # generates shell commands
+
 # Info
 wrightty info
 wrightty size
+wrightty discover                           # find all running wrightty servers
 
 # Connect to a different server
 wrightty --url ws://127.0.0.1:9421 run "ls"
@@ -227,6 +252,9 @@ This gives the AI agent these tools:
 | `screenshot` | Take an SVG screenshot of the terminal |
 | `wait_for_text` | Wait until specific text appears |
 | `terminal_info` | Get terminal dimensions and capabilities |
+| `start_recording` | Start session + action recording |
+| `stop_recording` | Stop recording, get asciicast + script |
+| `capture_screen_frame` | Capture a single SVG frame |
 
 ## Protocol
 
