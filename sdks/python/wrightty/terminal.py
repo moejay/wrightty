@@ -305,3 +305,29 @@ class Terminal:
         Returns dict with keys: frames, duration, frameCount, format.
         """
         return self._client.request("Recording.stopScreenCapture", {"recordingId": recording_id})
+
+    def start_video(self, fps: int = 30, format: str = "mp4") -> str:
+        """Start framebuffer video recording (native emulators only).
+
+        Captures the actual rendered pixels via glReadPixels and pipes to ffmpeg.
+        Requires ffmpeg installed on the system.
+
+        Args:
+            fps: Frames per second (default: 30)
+            format: "mp4", "webm", or "gif"
+
+        Returns a recording ID. Stop with stop_video().
+        """
+        result = self._client.request(
+            "Recording.startVideo",
+            {"sessionId": self._session_id, "fps": fps, "format": format},
+        )
+        return result["recordingId"]
+
+    def stop_video(self, recording_id: str) -> dict:
+        """Stop video recording and return metadata.
+
+        Returns dict with keys: format, path, duration, frames, width, height, size.
+        The video file is at the returned `path`.
+        """
+        return self._client.request("Recording.stopVideo", {"recordingId": recording_id})

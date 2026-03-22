@@ -230,6 +230,16 @@ result = term.stop_screen_recording(rec_id)
 # result["frames"] is a list of SVG frames with timestamps
 ```
 
+### Video recording (native emulators only, requires ffmpeg)
+Captures the actual rendered framebuffer — pixel perfect, including colors, fonts, sixel images, everything on screen.
+
+```python
+rec_id = term.start_video(fps=30, format="mp4")
+# ... do stuff ...
+result = term.stop_video(rec_id)
+print(result["path"])  # /tmp/wrightty-rec_001.mp4
+```
+
 ### CLI
 ```bash
 wrightty record -o session.cast            # Ctrl+C to stop

@@ -594,9 +594,11 @@ Query the active terminal modes. Useful for understanding what the running appli
 
 ---
 
-### 2.6 Recording
+### 2.6 Recording (experimental)
 
-Record terminal sessions, actions, and screen captures.
+> **Status:** Experimental. Recording methods may change between versions. Implementations advertise recording support via `capabilities.recording` in `Wrightty.getInfo`.
+
+Record terminal sessions, actions, and video.
 
 | Method | Description |
 |--------|-------------|
@@ -604,9 +606,17 @@ Record terminal sessions, actions, and screen captures.
 | `Recording.stopSession` | Stop session recording and return the data |
 | `Recording.startActions` | Start recording wrightty API calls as a replayable script |
 | `Recording.stopActions` | Stop action recording and return the script |
-| `Recording.captureScreen` | Capture a single screen frame (append to a screen recording) |
-| `Recording.startScreenCapture` | Start periodic screen capture |
-| `Recording.stopScreenCapture` | Stop screen capture and return all frames |
+| `Recording.captureScreen` | Capture a single screen frame |
+| `Recording.startVideo` | Start framebuffer video recording (native emulators only) |
+| `Recording.stopVideo` | Stop video recording and return the file |
+
+Recording tiers (implementations advertise which they support):
+
+| Tier | What | How | Overhead |
+|------|------|-----|----------|
+| **1 — Session** | PTY byte stream + timestamps | Tap into PTY event loop | Near zero |
+| **2 — Video** | Pixel-perfect framebuffer capture | `glReadPixels` after render, pipe to ffmpeg | Low-medium |
+| **3 — Actions** | API call log → replayable script | Intercept JSON-RPC methods | Near zero |
 
 #### `Recording.startSession`
 
@@ -738,16 +748,16 @@ Capture a single screen frame. Can be called at any time. Frames can be collecte
 }
 ```
 
-#### `Recording.startScreenCapture`
+#### `Recording.startVideo`
 
-Start automatically capturing screen frames at a fixed interval.
+Start recording the terminal as a video. Captures the actual rendered framebuffer at the specified FPS. Only available on native emulators with GPU rendering (Tier 2). Requires `ffmpeg` on the system.
 
 **Params:**
 ```json
 {
   "sessionId": "a1b2c3d4...",
-  "intervalMs": 500,           // capture every 500ms (default: 1000)
-  "format": "svg"              // "svg", "text", or "png"
+  "fps": 30,                   // frames per second (default: 30)
+  "format": "mp4"              // "mp4", "webm", or "gif"
 }
 ```
 
@@ -758,9 +768,9 @@ Start automatically capturing screen frames at a fixed interval.
 }
 ```
 
-#### `Recording.stopScreenCapture`
+#### `Recording.stopVideo`
 
-Stop screen capture and return all captured frames.
+Stop video recording. The server finishes encoding and returns the video file.
 
 **Params:**
 ```json
@@ -772,16 +782,17 @@ Stop screen capture and return all captured frames.
 **Result:**
 ```json
 {
-  "frames": [
-    { "frameId": 0, "timestamp": 0, "data": "<svg ...>" },
-    { "frameId": 1, "timestamp": 500, "data": "<svg ...>" },
-    { "frameId": 2, "timestamp": 1000, "data": "<svg ...>" }
-  ],
-  "duration": 1.0,
-  "frameCount": 3,
-  "format": "svg"
+  "format": "mp4",
+  "path": "/tmp/wrightty-rec_003.mp4",
+  "duration": 12.5,
+  "frames": 375,
+  "width": 1920,
+  "height": 1080,
+  "size": 2458624
 }
 ```
+
+The video is saved to a temp file. The `path` field contains the absolute path. For large videos, the file is not base64-encoded in the response — the client reads it from disk.
 
 ---
 
