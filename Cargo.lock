@@ -2377,6 +2377,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "wrightty-bridge-ghostty"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "jsonrpsee",
+ "libc",
+ "serde",
+ "serde_json",
+ "thiserror 1.0.69",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "wrightty-protocol",
+]
+
+[[package]]
 name = "wrightty-bridge-kitty"
 version = "0.1.0"
 dependencies = [

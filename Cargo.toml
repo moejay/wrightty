@@ -9,6 +9,7 @@ members = [
     "crates/wrightty-bridge-tmux",
     "crates/wrightty-bridge-kitty",
     "crates/wrightty-bridge-zellij",
+    "crates/wrightty-bridge-ghostty",
 ]
 
 [workspace.package]

@@ -160,7 +160,36 @@ The bridge listens on port 9481 and targets the focused pane in the active sessi
 term = Terminal.connect("ws://127.0.0.1:9481")
 ```
 
-### Option F: Headless daemon (no GUI)
+### Option F: Ghostty (via bridge)
+
+Connects to a running Ghostty instance via its Unix IPC socket. Text and key injection require `xdotool` on Linux (X11) or Accessibility permissions on macOS.
+
+```bash
+# Ghostty must be running. Install xdotool for input support:
+sudo apt install xdotool   # Debian/Ubuntu
+
+# Start the bridge:
+cargo run -p wrightty-bridge-ghostty
+
+# Override socket path if needed:
+GHOSTTY_SOCKET=/run/user/1000/ghostty/sock cargo run -p wrightty-bridge-ghostty
+
+# Force input backend (xdotool | osascript | none):
+GHOSTTY_INPUT_BACKEND=xdotool cargo run -p wrightty-bridge-ghostty
+```
+
+The bridge listens on port 9501. Session IDs are Ghostty window IDs:
+
+```python
+term = Terminal.connect("ws://127.0.0.1:9501")
+```
+
+> **Note:** Screen text capture (`Screen.getText`) is not available via the external bridge
+> because Ghostty's IPC does not expose the terminal grid. For full read-screen support,
+> use the [ghostty-wrightty fork](../ghostty/) which has native Wrightty protocol support
+> built into the terminal process.
+
+### Option G: Headless daemon (no GUI)
 
 Spawns a virtual terminal with no window. Uses Alacritty's terminal emulator under the hood. Good for CI and testing.
 
@@ -360,7 +389,8 @@ wrightty/
 │   ├── wrightty-bridge-wezterm/  # WezTerm bridge (port 9421)
 │   ├── wrightty-bridge-tmux/     # tmux bridge (port 9441)
 │   ├── wrightty-bridge-kitty/    # Kitty bridge (port 9461)
-│   └── wrightty-bridge-zellij/   # Zellij bridge (port 9481)
+│   ├── wrightty-bridge-zellij/   # Zellij bridge (port 9481)
+│   └── wrightty-bridge-ghostty/  # Ghostty bridge (port 9501)
 ├── sdks/
 │   └── python/                   # Python SDK, CLI, MCP server
 └── PROTOCOL.md                   # Full protocol specification
@@ -377,7 +407,7 @@ wrightty/
 | **tmux** | ✅ | ✅ | ✅ | — | — | Bridge (`capture-pane` + `send-keys`) | ✅ Shipped |
 | **Zellij** | ✅ | ✅ | ✅ | — | — | Bridge (CLI actions) | ✅ Shipped |
 | **iTerm2** | ✅ | ✅ | ✅ | — | — | Bridge (Python API) | 🔜 Planned |
-| **Ghostty** | ❌ | ❌ | ❌ | — | — | Needs upstream IPC | 📋 Needs contribution |
+| **Ghostty** | ❌ | ✅ | ✅ | — | — | Bridge (IPC socket + xdotool) | ✅ Shipped |
 | **Windows Terminal** | ❌ | ❌ | ✅ create | — | — | Partial bridge (CLI) | 📋 Limited |
 | **Konsole** | ❌ | ✅ | ✅ | — | — | Bridge (D-Bus) | 📋 Partial |
 | **GNOME Terminal** | ❌ | ❌ | ✅ create | — | — | Needs VTE patch | 📋 Needs contribution |
