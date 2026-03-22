@@ -133,6 +133,44 @@ pub fn extract_text(term: &Term<VoidListener>) -> String {
     lines.join("\n")
 }
 
+/// Extract scrollback history lines as plain text.
+/// Returns up to `lines` lines starting from `offset` lines before the most recent history line.
+pub fn extract_scrollback(
+    term: &Term<VoidListener>,
+    lines: u32,
+    offset: u32,
+) -> (Vec<wrightty_protocol::methods::ScrollbackLine>, u32) {
+    let grid = term.grid();
+    let history = grid.history_size() as u32;
+    let num_cols = grid.columns();
+
+    let total_scrollback = history;
+    let start = offset;
+    let end = (offset + lines).min(history);
+
+    let mut result = Vec::new();
+    for i in start..end {
+        // Line(-(i+1)) is the (i+1)th most-recent history line
+        let line_idx = Line(-((i as i32) + 1));
+        let mut row_text = String::with_capacity(num_cols);
+        for col_idx in 0..num_cols {
+            let point = Point::new(line_idx, Column(col_idx));
+            let cell = &grid[point];
+            if cell.flags.contains(Flags::WIDE_CHAR_SPACER) {
+                continue;
+            }
+            row_text.push(cell.c);
+        }
+        let text = row_text.trim_end().to_string();
+        result.push(wrightty_protocol::methods::ScrollbackLine {
+            text,
+            line_number: -((i as i32) + 1),
+        });
+    }
+
+    (result, total_scrollback)
+}
+
 /// Data returned by extract_contents (before serialization to protocol type).
 pub struct ScreenGetContentsData {
     pub rows: u32,

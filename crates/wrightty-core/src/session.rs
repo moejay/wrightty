@@ -198,6 +198,22 @@ impl Session {
         screen::extract_text(&s.term)
     }
 
+    /// Get the current screen as a structured cell grid.
+    pub fn get_contents(&self) -> screen::ScreenGetContentsData {
+        let s = self.state.lock().unwrap();
+        screen::extract_contents(&s.term)
+    }
+
+    /// Get scrollback history lines.
+    pub fn get_scrollback(
+        &self,
+        lines: u32,
+        offset: u32,
+    ) -> (Vec<wrightty_protocol::methods::ScrollbackLine>, u32) {
+        let s = self.state.lock().unwrap();
+        screen::extract_scrollback(&s.term, lines, offset)
+    }
+
     /// Get the current terminal size.
     pub fn size(&self) -> (u16, u16) {
         (self.cols, self.rows)

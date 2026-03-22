@@ -142,6 +142,102 @@ impl WrighttyClient {
         Ok(())
     }
 
+    pub async fn get_contents(
+        &self,
+        session_id: &str,
+    ) -> Result<ScreenGetContentsResult, Box<dyn std::error::Error>> {
+        let params = ScreenGetContentsParams {
+            session_id: session_id.to_string(),
+            region: None,
+        };
+        let result: ScreenGetContentsResult = self
+            .client
+            .request("Screen.getContents", to_params(&params)?)
+            .await?;
+        Ok(result)
+    }
+
+    pub async fn get_scrollback(
+        &self,
+        session_id: &str,
+        lines: u32,
+        offset: u32,
+    ) -> Result<ScreenGetScrollbackResult, Box<dyn std::error::Error>> {
+        let params = ScreenGetScrollbackParams {
+            session_id: session_id.to_string(),
+            lines,
+            offset,
+        };
+        let result: ScreenGetScrollbackResult = self
+            .client
+            .request("Screen.getScrollback", to_params(&params)?)
+            .await?;
+        Ok(result)
+    }
+
+    pub async fn screenshot(
+        &self,
+        session_id: &str,
+        format: ScreenshotFormat,
+    ) -> Result<ScreenScreenshotResult, Box<dyn std::error::Error>> {
+        let params = ScreenScreenshotParams {
+            session_id: session_id.to_string(),
+            format,
+            theme: None,
+            font: None,
+        };
+        let result: ScreenScreenshotResult = self
+            .client
+            .request("Screen.screenshot", to_params(&params)?)
+            .await?;
+        Ok(result)
+    }
+
+    pub async fn wait_for_text(
+        &self,
+        session_id: &str,
+        pattern: &str,
+        is_regex: bool,
+        timeout_ms: u64,
+    ) -> Result<ScreenWaitForTextResult, Box<dyn std::error::Error>> {
+        let params = ScreenWaitForTextParams {
+            session_id: session_id.to_string(),
+            pattern: pattern.to_string(),
+            is_regex,
+            region: None,
+            timeout: timeout_ms,
+            interval: 50,
+        };
+        let result: ScreenWaitForTextResult = self
+            .client
+            .request("Screen.waitForText", to_params(&params)?)
+            .await?;
+        Ok(result)
+    }
+
+    pub async fn send_mouse(
+        &self,
+        session_id: &str,
+        event: &str,
+        button: &str,
+        row: u32,
+        col: u32,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let params = InputSendMouseParams {
+            session_id: session_id.to_string(),
+            event: event.to_string(),
+            button: button.to_string(),
+            row,
+            col,
+            modifiers: vec![],
+        };
+        let _: serde_json::Value = self
+            .client
+            .request("Input.sendMouse", to_params(&params)?)
+            .await?;
+        Ok(())
+    }
+
     pub async fn get_size(
         &self,
         session_id: &str,

@@ -1,3 +1,5 @@
+use std::time::{Duration, Instant};
+
 use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::RpcModule;
 
@@ -124,6 +126,25 @@ pub fn build_rpc_module(state: AppState) -> anyhow::Result<RpcModule<AppState>> 
         Ok::<_, ErrorObjectOwned>(serde_json::json!({}))
     })?;
 
+    // --- Screen.getContents ---
+    module.register_method("Screen.getContents", |params, state, _| {
+        let p: ScreenGetContentsParams = params.parse()?;
+        let mgr = state.session_manager.lock().unwrap();
+        let session = mgr
+            .get(&p.session_id)
+            .ok_or_else(|| proto_err(error::SESSION_NOT_FOUND, "session not found"))?;
+
+        let data = session.get_contents();
+        serde_json::to_value(ScreenGetContentsResult {
+            rows: data.rows,
+            cols: data.cols,
+            cursor: data.cursor,
+            cells: data.cells,
+            alternate_screen: data.alternate_screen,
+        })
+        .map_err(|e| proto_err(-32603, e.to_string()))
+    })?;
+
     // --- Screen.getText ---
     module.register_method("Screen.getText", |params, state, _| {
         let p: ScreenGetTextParams = params.parse()?;
@@ -135,6 +156,135 @@ pub fn build_rpc_module(state: AppState) -> anyhow::Result<RpcModule<AppState>> 
         let text = session.get_text();
         serde_json::to_value(ScreenGetTextResult { text })
             .map_err(|e| proto_err(-32603, e.to_string()))
+    })?;
+
+    // --- Screen.getScrollback ---
+    module.register_method("Screen.getScrollback", |params, state, _| {
+        let p: ScreenGetScrollbackParams = params.parse()?;
+        let mgr = state.session_manager.lock().unwrap();
+        let session = mgr
+            .get(&p.session_id)
+            .ok_or_else(|| proto_err(error::SESSION_NOT_FOUND, "session not found"))?;
+
+        let (lines, total_scrollback) = session.get_scrollback(p.lines, p.offset);
+        serde_json::to_value(ScreenGetScrollbackResult {
+            lines,
+            total_scrollback,
+        })
+        .map_err(|e| proto_err(-32603, e.to_string()))
+    })?;
+
+    // --- Screen.screenshot ---
+    module.register_method("Screen.screenshot", |params, state, _| {
+        let p: ScreenScreenshotParams = params.parse()?;
+        let mgr = state.session_manager.lock().unwrap();
+        let session = mgr
+            .get(&p.session_id)
+            .ok_or_else(|| proto_err(error::SESSION_NOT_FOUND, "session not found"))?;
+
+        match p.format {
+            ScreenshotFormat::Text => {
+                let text = session.get_text();
+                serde_json::to_value(ScreenScreenshotResult {
+                    format: ScreenshotFormat::Text,
+                    data: text,
+                    width: None,
+                    height: None,
+                })
+                .map_err(|e| proto_err(-32603, e.to_string()))
+            }
+            ScreenshotFormat::Json => {
+                let data = session.get_contents();
+                let json_data = serde_json::to_string(&data.cells)
+                    .map_err(|e| proto_err(-32603, e.to_string()))?;
+                serde_json::to_value(ScreenScreenshotResult {
+                    format: ScreenshotFormat::Json,
+                    data: json_data,
+                    width: Some(data.cols),
+                    height: Some(data.rows),
+                })
+                .map_err(|e| proto_err(-32603, e.to_string()))
+            }
+            _ => Err(proto_err(error::NOT_SUPPORTED, "screenshot format not supported")),
+        }
+    })?;
+
+    // --- Screen.waitForText ---
+    module.register_async_method("Screen.waitForText", |params, state, _| async move {
+        let p: ScreenWaitForTextParams = params.parse()?;
+
+        let deadline = Instant::now() + Duration::from_millis(p.timeout);
+        let interval = Duration::from_millis(p.interval.max(10));
+
+        let re = if p.is_regex {
+            Some(
+                regex::Regex::new(&p.pattern)
+                    .map_err(|_| proto_err(error::INVALID_PATTERN, "invalid regex pattern"))?,
+            )
+        } else {
+            None
+        };
+
+        loop {
+            let text = {
+                let mgr = state.session_manager.lock().unwrap();
+                let session = mgr
+                    .get(&p.session_id)
+                    .ok_or_else(|| proto_err(error::SESSION_NOT_FOUND, "session not found"))?;
+                session.get_text()
+            };
+
+            let matched = if let Some(ref re) = re {
+                re.is_match(&text)
+            } else {
+                text.contains(&p.pattern)
+            };
+
+            if matched {
+                let elapsed = deadline
+                    .checked_duration_since(Instant::now())
+                    .map(|remaining| p.timeout - remaining.as_millis() as u64)
+                    .unwrap_or(p.timeout);
+
+                let matches = if let Some(ref re) = re {
+                    re.find_iter(&text)
+                        .map(|m| TextMatch {
+                            text: m.as_str().to_string(),
+                            row: 0,
+                            col: 0,
+                            length: m.len() as u32,
+                        })
+                        .collect()
+                } else {
+                    text.match_indices(p.pattern.as_str())
+                        .map(|(_, s)| TextMatch {
+                            text: s.to_string(),
+                            row: 0,
+                            col: 0,
+                            length: s.len() as u32,
+                        })
+                        .collect()
+                };
+
+                return serde_json::to_value(ScreenWaitForTextResult {
+                    found: true,
+                    matches,
+                    elapsed,
+                })
+                .map_err(|e| proto_err(-32603, e.to_string()));
+            }
+
+            if Instant::now() >= deadline {
+                return serde_json::to_value(ScreenWaitForTextResult {
+                    found: false,
+                    matches: vec![],
+                    elapsed: p.timeout,
+                })
+                .map_err(|e| proto_err(-32603, e.to_string()));
+            }
+
+            tokio::time::sleep(interval).await;
+        }
     })?;
 
     // --- Terminal.resize ---

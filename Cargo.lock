@@ -2421,6 +2421,7 @@ dependencies = [
  "anyhow",
  "clap",
  "jsonrpsee",
+ "regex",
  "serde",
  "serde_json",
  "tokio",
