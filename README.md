@@ -260,7 +260,7 @@ This gives the AI agent these tools:
 
 The full protocol specification is in [PROTOCOL.md](PROTOCOL.md).
 
-Quick overview — 6 domains, 16 methods, all over WebSocket JSON-RPC 2.0:
+Quick overview — 7 domains, 28 methods, all over WebSocket JSON-RPC 2.0:
 
 | Domain | Methods |
 |--------|---------|
@@ -268,7 +268,8 @@ Quick overview — 6 domains, 16 methods, all over WebSocket JSON-RPC 2.0:
 | **Session** | `create`, `destroy`, `list`, `getInfo` |
 | **Input** | `sendKeys`, `sendText`, `sendMouse` |
 | **Screen** | `getContents`, `getText`, `getScrollback`, `screenshot`, `waitForText`, `waitForCursor` |
-| **Terminal** | `resize`, `getSize`, `setColorPalette`, `getModes` |
+| **Terminal** | `resize`, `getSize`, `setColorPalette`, `getColorPalette`, `getModes` |
+| **Recording** | `startSession`, `stopSession`, `startActions`, `stopActions`, `captureScreen`, `startVideo`, `stopVideo` |
 | **Events** | `subscribe`, `unsubscribe` — screen updates, bell, title change, shell integration |
 
 Example session:
