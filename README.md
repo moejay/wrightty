@@ -184,10 +184,10 @@ The bridge listens on port 9501. Session IDs are Ghostty window IDs:
 term = Terminal.connect("ws://127.0.0.1:9501")
 ```
 
-> **Note:** Screen text capture (`Screen.getText`) is not available via the external bridge
-> because Ghostty's IPC does not expose the terminal grid. For full read-screen support,
-> use the [ghostty-wrightty fork](../ghostty/) which has native Wrightty protocol support
-> built into the terminal process.
+> **Native fork available:** [moejay/ghostty](https://github.com/moejay/ghostty/tree/wrightty)
+> has Wrightty built directly into Ghostty, enabling full `Screen.getText`, `Recording.*`,
+> and color palette support without xdotool. The external bridge above works with any
+> unmodified Ghostty binary as a quick-start option.
 
 ### Option G: Headless daemon (no GUI)
 
@@ -407,7 +407,7 @@ wrightty/
 | **tmux** | ✅ | ✅ | ✅ | — | — | Bridge (`capture-pane` + `send-keys`) | ✅ Shipped |
 | **Zellij** | ✅ | ✅ | ✅ | — | — | Bridge (CLI actions) | ✅ Shipped |
 | **iTerm2** | ✅ | ✅ | ✅ | — | — | Bridge (Python API) | 🔜 Planned |
-| **Ghostty** | ❌ | ✅ | ✅ | — | — | Bridge (IPC socket + xdotool) | ✅ Shipped |
+| **Ghostty** | ✅ | ✅ | ✅ | ✅ text | ✅ cast | [Native fork](https://github.com/moejay/ghostty/tree/wrightty) + Bridge | ✅ Shipped |
 | **Windows Terminal** | ❌ | ❌ | ✅ create | — | — | Partial bridge (CLI) | 📋 Limited |
 | **Konsole** | ❌ | ✅ | ✅ | — | — | Bridge (D-Bus) | 📋 Partial |
 | **GNOME Terminal** | ❌ | ❌ | ✅ create | — | — | Needs VTE patch | 📋 Needs contribution |
