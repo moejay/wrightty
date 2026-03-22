@@ -319,6 +319,7 @@ pub fn build_rpc_module(state: AppState) -> anyhow::Result<RpcModule<AppState>> 
     // --- Recording.captureScreen ---
     module.register_method("Recording.captureScreen", |params, state, _| {
         #[derive(serde::Deserialize)]
+        #[serde(rename_all = "camelCase")]
         struct P { session_id: String }
         let p: P = params.parse()?;
         let mgr = state.session_manager.lock().unwrap();
@@ -333,6 +334,7 @@ pub fn build_rpc_module(state: AppState) -> anyhow::Result<RpcModule<AppState>> 
     // --- Recording.startVideo ---
     module.register_async_method("Recording.startVideo", |params, state, _| async move {
         #[derive(serde::Deserialize)]
+        #[serde(rename_all = "camelCase")]
         struct P {
             session_id: String,
             #[serde(default = "default_interval")]
@@ -404,6 +406,7 @@ pub fn build_rpc_module(state: AppState) -> anyhow::Result<RpcModule<AppState>> 
     // --- Recording.stopVideo ---
     module.register_method("Recording.stopVideo", |params, state, _| {
         #[derive(serde::Deserialize)]
+        #[serde(rename_all = "camelCase")]
         struct P { recording_id: String }
         let p: P = params.parse()?;
 
