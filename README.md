@@ -306,6 +306,40 @@ wrightty/
 └── PROTOCOL.md                   # Full protocol specification
 ```
 
+## Terminal compatibility
+
+| Terminal | Read screen | Send input | Sessions | Screenshot | Video | Integration | Status |
+|----------|:-----------:|:----------:|:--------:|:----------:|:-----:|-------------|--------|
+| **Headless daemon** | ✅ | ✅ | ✅ | ✅ SVG | — | Built-in | ✅ Shipped |
+| **Alacritty** | ✅ | ✅ | — | ✅ SVG | ✅ mp4/gif | [Native fork](https://github.com/moejay/alacritty/tree/wrightty-support) | ✅ Shipped |
+| **WezTerm** | ✅ | ✅ | ✅ | — | — | Bridge (`wezterm cli`) | ✅ Shipped |
+| **Kitty** | ✅ | ✅ | ✅ | — | — | Bridge (socket IPC) | 🔜 Planned |
+| **tmux** | ✅ | ✅ | ✅ | — | — | Bridge (`capture-pane` + `send-keys`) | 🔜 Planned |
+| **Zellij** | ✅ | ✅ | ✅ | — | — | Bridge (CLI actions) or WASM plugin | 🔜 Planned |
+| **iTerm2** | ✅ | ✅ | ✅ | — | — | Bridge (Python API) | 🔜 Planned |
+| **Ghostty** | ❌ | ❌ | ❌ | — | — | Needs upstream IPC | 📋 Needs contribution |
+| **Windows Terminal** | ❌ | ❌ | ✅ create | — | — | Partial bridge (CLI) | 📋 Limited |
+| **Konsole** | ❌ | ✅ | ✅ | — | — | Bridge (D-Bus) | 📋 Partial |
+| **GNOME Terminal** | ❌ | ❌ | ✅ create | — | — | Needs VTE patch | 📋 Needs contribution |
+| **foot** | ❌ | ❌ | ❌ | — | — | Use with tmux/zellij | ➡️ Use multiplexer |
+| **Rio** | ❌ | ❌ | ❌ | — | — | Needs upstream IPC | 📋 Needs contribution |
+| **Warp** | ❌ | ❌ | ❌ | — | — | Closed source | ❌ Not feasible |
+
+**Legend:**
+- **Native fork** — wrightty protocol built directly into the emulator, zero overhead
+- **Bridge** — external process translates wrightty protocol to the terminal's existing IPC
+- **Needs contribution** — terminal has no IPC; requires adding one upstream or forking
+
+### Adding support for a new terminal
+
+If your terminal has any way to:
+1. **Read screen content** (CLI command, socket, D-Bus, API)
+2. **Send input** (same)
+
+...then a wrightty bridge can be built. See `crates/wrightty-bridge-wezterm/` for a reference implementation. The bridge just translates wrightty JSON-RPC calls to whatever your terminal exposes.
+
+For terminals with no IPC at all, pair them with **tmux** or **zellij** and use that bridge instead — works with any terminal.
+
 ## License
 
 MIT
