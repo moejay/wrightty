@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build-and-test:
+    name: Build, Test, Lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: cargo build
+        run: cargo build --workspace
+
+      - name: cargo test
+        run: cargo test --workspace
+
+      - name: cargo clippy
+        run: cargo clippy --workspace -- -D warnings
+
+  python-sdk:
+    name: Python SDK
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Python SDK
+        working-directory: sdks/python
+        run: pip install -e ".[cli,mcp]"
+
+      - name: Check Python syntax
+        working-directory: sdks/python
+        run: python -m py_compile wrightty/*.py
+
+      - name: Run Python tests (if any)
+        working-directory: sdks/python
+        run: |
+          if find . -name "test_*.py" | grep -q .; then
+            python -m pytest
+          else
+            echo "No Python tests found, skipping."
+          fi
