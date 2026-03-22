@@ -6,6 +6,9 @@ members = [
     "crates/wrightty-server",
     "crates/wrightty-client",
     "crates/wrightty-bridge-wezterm",
+    "crates/wrightty-bridge-tmux",
+    "crates/wrightty-bridge-kitty",
+    "crates/wrightty-bridge-zellij",
 ]
 
 [workspace.package]

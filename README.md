@@ -104,7 +104,63 @@ The bridge listens on port 9421:
 term = Terminal.connect("ws://127.0.0.1:9421")
 ```
 
-### Option C: Headless daemon (no GUI)
+### Option C: tmux (via bridge)
+
+Works with any running tmux server. Unlocks wrightty support for **any terminal** running inside tmux (foot, GNOME Terminal, Rio, etc.).
+
+```bash
+# Start a tmux session if you don't have one:
+tmux new-session -d -s main
+
+# Start the bridge:
+cargo run -p wrightty-bridge-tmux
+```
+
+The bridge listens on port 9441. Session IDs use tmux's `<session>:<window>.<pane>` format (e.g. `main:0.0`):
+
+```python
+term = Terminal.connect("ws://127.0.0.1:9441")
+sessions = term.list_sessions()  # lists all panes across all tmux sessions
+```
+
+### Option D: Kitty (via bridge)
+
+Works with Kitty's remote control protocol. Requires `allow_remote_control yes` in `kitty.conf`.
+
+```bash
+# Enable remote control in kitty.conf:
+#   allow_remote_control yes
+# Or launch kitty with:
+#   kitty --listen-on unix:/tmp/kitty.sock
+# And set KITTY_LISTEN_ON:
+export KITTY_LISTEN_ON=unix:/tmp/kitty.sock
+
+# Start the bridge:
+cargo run -p wrightty-bridge-kitty
+```
+
+The bridge listens on port 9461. Session IDs are kitty window IDs:
+
+```python
+term = Terminal.connect("ws://127.0.0.1:9461")
+```
+
+### Option E: Zellij (via bridge)
+
+Works with Zellij's CLI actions. Must be run from within a Zellij session.
+
+```bash
+# Start zellij first, then run the bridge from within the session:
+cargo run -p wrightty-bridge-zellij
+```
+
+The bridge listens on port 9481 and targets the focused pane in the active session:
+
+```python
+term = Terminal.connect("ws://127.0.0.1:9481")
+```
+
+### Option F: Headless daemon (no GUI)
 
 Spawns a virtual terminal with no window. Uses Alacritty's terminal emulator under the hood. Good for CI and testing.
 
@@ -301,7 +357,10 @@ wrightty/
 │   ├── wrightty-core/            # Headless terminal engine (alacritty_terminal + PTY)
 │   ├── wrightty-server/          # WebSocket daemon (port 9420)
 │   ├── wrightty-client/          # Rust client SDK
-│   └── wrightty-bridge-wezterm/  # WezTerm bridge (port 9421)
+│   ├── wrightty-bridge-wezterm/  # WezTerm bridge (port 9421)
+│   ├── wrightty-bridge-tmux/     # tmux bridge (port 9441)
+│   ├── wrightty-bridge-kitty/    # Kitty bridge (port 9461)
+│   └── wrightty-bridge-zellij/   # Zellij bridge (port 9481)
 ├── sdks/
 │   └── python/                   # Python SDK, CLI, MCP server
 └── PROTOCOL.md                   # Full protocol specification
@@ -314,9 +373,9 @@ wrightty/
 | **Headless daemon** | ✅ | ✅ | ✅ | ✅ SVG | — | Built-in | ✅ Shipped |
 | **Alacritty** | ✅ | ✅ | — | ✅ SVG | ✅ mp4/gif | [Native fork](https://github.com/moejay/alacritty/tree/wrightty-support) | ✅ Shipped |
 | **WezTerm** | ✅ | ✅ | ✅ | — | — | Bridge (`wezterm cli`) | ✅ Shipped |
-| **Kitty** | ✅ | ✅ | ✅ | — | — | Bridge (socket IPC) | 🔜 Planned |
-| **tmux** | ✅ | ✅ | ✅ | — | — | Bridge (`capture-pane` + `send-keys`) | 🔜 Planned |
-| **Zellij** | ✅ | ✅ | ✅ | — | — | Bridge (CLI actions) or WASM plugin | 🔜 Planned |
+| **Kitty** | ✅ | ✅ | ✅ | — | — | Bridge (`kitty @`) | ✅ Shipped |
+| **tmux** | ✅ | ✅ | ✅ | — | — | Bridge (`capture-pane` + `send-keys`) | ✅ Shipped |
+| **Zellij** | ✅ | ✅ | ✅ | — | — | Bridge (CLI actions) | ✅ Shipped |
 | **iTerm2** | ✅ | ✅ | ✅ | — | — | Bridge (Python API) | 🔜 Planned |
 | **Ghostty** | ❌ | ❌ | ❌ | — | — | Needs upstream IPC | 📋 Needs contribution |
 | **Windows Terminal** | ❌ | ❌ | ✅ create | — | — | Partial bridge (CLI) | 📋 Limited |
