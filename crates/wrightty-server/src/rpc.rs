@@ -1,4 +1,5 @@
 use std::time::{Duration, Instant};
+use std::sync::Arc;
 
 use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::RpcModule;
@@ -8,7 +9,7 @@ use wrightty_protocol::error;
 use wrightty_protocol::methods::*;
 use wrightty_protocol::types::*;
 
-use crate::state::AppState;
+use crate::state::{AppState, VideoFrame, VideoRecording};
 
 fn proto_err(code: i32, msg: impl Into<String>) -> ErrorObjectOwned {
     ErrorObjectOwned::owned(code, msg.into(), None::<()>)
@@ -313,6 +314,138 @@ pub fn build_rpc_module(state: AppState) -> anyhow::Result<RpcModule<AppState>> 
         let (cols, rows) = session.size();
         serde_json::to_value(TerminalGetSizeResult { cols, rows })
             .map_err(|e| proto_err(-32603, e.to_string()))
+    })?;
+
+    // --- Recording.captureScreen ---
+    module.register_method("Recording.captureScreen", |params, state, _| {
+        #[derive(serde::Deserialize)]
+        struct P { session_id: String }
+        let p: P = params.parse()?;
+        let mgr = state.session_manager.lock().unwrap();
+        let session = mgr
+            .get(&p.session_id)
+            .ok_or_else(|| proto_err(error::SESSION_NOT_FOUND, "session not found"))?;
+        let text = session.get_text();
+        serde_json::to_value(serde_json::json!({ "data": text, "format": "text" }))
+            .map_err(|e| proto_err(-32603, e.to_string()))
+    })?;
+
+    // --- Recording.startVideo ---
+    module.register_async_method("Recording.startVideo", |params, state, _| async move {
+        #[derive(serde::Deserialize)]
+        struct P {
+            session_id: String,
+            #[serde(default = "default_interval")]
+            interval_ms: u64,
+        }
+        fn default_interval() -> u64 { 500 }
+
+        let p: P = params.parse()?;
+
+        // Validate session exists and get dimensions
+        let (cols, rows) = {
+            let mgr = state.session_manager.lock().unwrap();
+            let s = mgr.get(&p.session_id)
+                .ok_or_else(|| proto_err(error::SESSION_NOT_FOUND, "session not found"))?;
+            s.size()
+        };
+
+        static COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+        let rec_id = format!("vid-{}", COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed));
+
+        {
+            let mut recs = state.video_recordings.lock().unwrap();
+            recs.insert(rec_id.clone(), VideoRecording {
+                session_id: p.session_id.clone(),
+                cols,
+                rows,
+                started_at: Instant::now(),
+                interval_ms: p.interval_ms,
+                frames: Vec::new(),
+                running: true,
+            });
+        }
+
+        // Spawn background task to capture frames
+        let recs_arc = Arc::clone(&state.video_recordings);
+        let rec_id_bg = rec_id.clone();
+        let session_id_bg = p.session_id.clone();
+        let session_mgr = Arc::clone(&state.session_manager);
+        let interval = Duration::from_millis(p.interval_ms);
+
+        tokio::spawn(async move {
+            loop {
+                tokio::time::sleep(interval).await;
+
+                let still_running = {
+                    let recs = recs_arc.lock().unwrap();
+                    recs.get(&rec_id_bg).map(|r| r.running).unwrap_or(false)
+                };
+                if !still_running { break; }
+
+                let frame_text = {
+                    let mgr = session_mgr.lock().unwrap();
+                    mgr.get(&session_id_bg).map(|s| s.get_text())
+                };
+                if let Some(text) = frame_text {
+                    let mut recs = recs_arc.lock().unwrap();
+                    if let Some(rec) = recs.get_mut(&rec_id_bg) {
+                        let elapsed = rec.started_at.elapsed().as_secs_f64();
+                        rec.frames.push(VideoFrame { elapsed_secs: elapsed, text });
+                    }
+                }
+            }
+        });
+
+        serde_json::to_value(serde_json::json!({ "recordingId": rec_id }))
+            .map_err(|e| proto_err(-32603, e.to_string()))
+    })?;
+
+    // --- Recording.stopVideo ---
+    module.register_method("Recording.stopVideo", |params, state, _| {
+        #[derive(serde::Deserialize)]
+        struct P { recording_id: String }
+        let p: P = params.parse()?;
+
+        let rec = {
+            let mut recs = state.video_recordings.lock().unwrap();
+            recs.remove(&p.recording_id)
+                .ok_or_else(|| proto_err(-32001, "recording not found"))?
+        };
+
+        // Serialise as asciicast v2
+        let start_ts = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+
+        let mut cast = String::new();
+        cast.push_str(&format!(
+            "{{\"version\":2,\"width\":{},\"height\":{},\"timestamp\":{},\"title\":\"wrightty video\"}}\n",
+            rec.cols, rec.rows, start_ts
+        ));
+
+        for frame in &rec.frames {
+            // Each frame: clear screen then write content
+            let clear = "\\u001b[2J\\u001b[H";
+            let mut data = frame.text.replace('\\', "\\\\")
+                .replace('"', "\\\"")
+                .replace('\n', "\\r\\n")
+                .replace('\r', "\\r");
+            cast.push_str(&format!(
+                "[{:.6},\"o\",\"{}{}\"]\\n",
+                frame.elapsed_secs, clear, data
+            ));
+        }
+        // Remove the trailing escaped newline and fix
+        let cast = cast.replace("\\n", "\n");
+
+        serde_json::to_value(serde_json::json!({
+            "data": cast,
+            "format": "asciicast",
+            "frameCount": rec.frames.len()
+        }))
+        .map_err(|e| proto_err(-32603, e.to_string()))
     })?;
 
     Ok(module)
