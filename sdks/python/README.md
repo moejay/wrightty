@@ -17,7 +17,7 @@ You also need a wrightty server running. Install it via:
 ```bash
 curl -fsSL https://raw.githubusercontent.com/moejay/wrightty/main/install.sh | sh
 # or
-cargo install wrightty-cli
+cargo install wrightty
 ```
 
 ## Quick start

@@ -15,7 +15,7 @@ case "$OS" in
   Darwin) OS_NAME="macos" ;;
   *)
     echo "error: Unsupported OS: $OS"
-    echo "Build from source: cargo install --git https://github.com/$REPO wrightty-cli"
+    echo "Build from source: cargo install --git https://github.com/$REPO wrightty"
     exit 1
     ;;
 esac
@@ -25,7 +25,7 @@ case "$ARCH" in
   aarch64|arm64) ARCH_NAME="aarch64" ;;
   *)
     echo "error: Unsupported architecture: $ARCH"
-    echo "Build from source: cargo install --git https://github.com/$REPO wrightty-cli"
+    echo "Build from source: cargo install --git https://github.com/$REPO wrightty"
     exit 1
     ;;
 esac

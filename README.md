@@ -15,7 +15,7 @@ curl -fsSL https://raw.githubusercontent.com/moejay/wrightty/main/install.sh | s
 ### Cargo (from crates.io)
 
 ```bash
-cargo install wrightty-cli
+cargo install wrightty
 ```
 
 ### From source
@@ -23,7 +23,7 @@ cargo install wrightty-cli
 ```bash
 git clone https://github.com/moejay/wrightty.git
 cd wrightty
-cargo build --release -p wrightty-cli
+cargo build --release -p wrightty
 # binary is at target/release/wrightty
 ```
 
@@ -32,7 +32,7 @@ cargo build --release -p wrightty-cli
 The `headless` feature (enabled by default) pulls in `alacritty_terminal` for virtual PTY support. For a lighter build with only bridge support:
 
 ```bash
-cargo build --release -p wrightty-cli --no-default-features --features bridge-tmux,bridge-wezterm,client
+cargo build --release -p wrightty --no-default-features --features bridge-tmux,bridge-wezterm,client
 ```
 
 ### SDKs
@@ -338,7 +338,7 @@ The full protocol specification is in [PROTOCOL.md](PROTOCOL.md).
 ```
 wrightty/
 ├── crates/
-│   ├── wrightty-cli/               # Unified CLI binary (this is what you install)
+│   ├── wrightty/                   # Unified CLI binary (this is what you install)
 │   ├── wrightty-protocol/          # Protocol types (serde, no logic)
 │   ├── wrightty-core/              # Headless terminal engine (alacritty_terminal + PTY)
 │   ├── wrightty-server/            # WebSocket daemon library

@@ -5,7 +5,7 @@ members = [
     "crates/wrightty-core",
     "crates/wrightty-server",
     "crates/wrightty-client",
-    "crates/wrightty-cli",
+    "crates/wrightty",
     "crates/wrightty-bridge-wezterm",
     "crates/wrightty-bridge-tmux",
     "crates/wrightty-bridge-kitty",

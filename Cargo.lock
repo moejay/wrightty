@@ -2377,6 +2377,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "wrightty"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "jsonrpsee",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "wrightty-bridge-ghostty",
+ "wrightty-bridge-kitty",
+ "wrightty-bridge-tmux",
+ "wrightty-bridge-wezterm",
+ "wrightty-bridge-zellij",
+ "wrightty-client",
+ "wrightty-core",
+ "wrightty-protocol",
+ "wrightty-server",
+]
+
+[[package]]
 name = "wrightty-bridge-ghostty"
 version = "0.1.0"
 dependencies = [
@@ -2456,29 +2479,6 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "wrightty-protocol",
-]
-
-[[package]]
-name = "wrightty-cli"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap",
- "jsonrpsee",
- "serde",
- "serde_json",
- "tokio",
- "tracing",
- "tracing-subscriber",
- "wrightty-bridge-ghostty",
- "wrightty-bridge-kitty",
- "wrightty-bridge-tmux",
- "wrightty-bridge-wezterm",
- "wrightty-bridge-zellij",
- "wrightty-client",
- "wrightty-core",
- "wrightty-protocol",
- "wrightty-server",
 ]
 
 [[package]]

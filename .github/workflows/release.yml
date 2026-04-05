@@ -45,7 +45,7 @@ jobs:
           sudo apt-get install -y gcc-aarch64-linux-gnu
 
       - name: Build
-        run: cargo build --release --target ${{ matrix.target }} -p wrightty-cli
+        run: cargo build --release --target ${{ matrix.target }} -p wrightty
         env:
           CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
 
@@ -107,7 +107,7 @@ jobs:
           cargo publish -p wrightty-bridge-zellij
           cargo publish -p wrightty-bridge-ghostty
           sleep 30
-          cargo publish -p wrightty-cli
+          cargo publish -p wrightty
 
   publish-npm:
     needs: release
@@ -154,3 +154,5 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: sdks/python/dist/
+          verbose: true
+          attestations: false
