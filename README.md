@@ -1,5 +1,12 @@
 # wrightty
 
+[![CI](https://github.com/moejay/wrightty/actions/workflows/ci.yml/badge.svg)](https://github.com/moejay/wrightty/actions/workflows/ci.yml)
+[![Release](https://github.com/moejay/wrightty/actions/workflows/release.yml/badge.svg)](https://github.com/moejay/wrightty/actions/workflows/release.yml)
+[![crates.io](https://img.shields.io/crates/v/wrightty.svg)](https://crates.io/crates/wrightty)
+[![PyPI](https://img.shields.io/pypi/v/wrightty.svg)](https://pypi.org/project/wrightty/)
+[![npm](https://img.shields.io/npm/v/@moejay/wrightty.svg)](https://www.npmjs.com/package/@moejay/wrightty)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 A CDP-like protocol for terminal automation. Control any terminal emulator programmatically — send keystrokes, read the screen, take screenshots, and run commands over WebSocket JSON-RPC.
 
 Built for AI coding agents that need to interact with terminals the way humans do.
@@ -38,8 +45,8 @@ cargo build --release -p wrightty --no-default-features --features bridge-tmux,b
 ### SDKs
 
 ```bash
-pip install wrightty          # Python
-npm install wrightty          # Node.js
+pip install wrightty             # Python
+npm install @moejay/wrightty     # Node.js
 ```
 
 ## Quick start
@@ -215,11 +222,11 @@ term.close()
 ## Node.js SDK
 
 ```bash
-npm install wrightty
+npm install @moejay/wrightty
 ```
 
 ```typescript
-import { Terminal } from "wrightty";
+import { Terminal } from "@moejay/wrightty";
 
 // Auto-discover running server
 const term = await Terminal.connect();

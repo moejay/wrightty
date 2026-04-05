@@ -1,5 +1,5 @@
 {
-  "name": "wrightty",
+  "name": "@moejay/wrightty",
   "version": "0.1.0",
   "description": "Node.js SDK for Wrightty terminal automation protocol",
   "author": "Moe Jay",
