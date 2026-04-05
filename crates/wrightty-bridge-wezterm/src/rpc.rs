@@ -111,7 +111,7 @@ fn encode_key_event(event: &KeyEvent, out: &mut String) {
         KeyType::Insert => "\x1b[2~",
         KeyType::F => {
             let n = event.n.unwrap_or(1);
-            let seq = match n {
+            match n {
                 1 => "\x1bOP",
                 2 => "\x1bOQ",
                 3 => "\x1bOR",
@@ -125,8 +125,7 @@ fn encode_key_event(event: &KeyEvent, out: &mut String) {
                 11 => "\x1b[23~",
                 12 => "\x1b[24~",
                 _ => "",
-            };
-            seq
+            }
         }
     };
     out.push_str(base);

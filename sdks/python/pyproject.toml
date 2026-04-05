@@ -6,7 +6,22 @@ build-backend = "setuptools.build_meta"
 name = "wrightty"
 version = "0.1.0"
 description = "Python SDK for the Wrightty terminal automation protocol"
+readme = "../../README.md"
 requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [{name = "Moe Jay"}]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: System :: Terminals",
+    "Topic :: Software Development :: Testing",
+    "Intended Audience :: Developers",
+]
 dependencies = [
     "websockets>=12.0",
 ]
@@ -15,8 +30,13 @@ dependencies = [
 cli = ["click>=8.0"]
 mcp = ["mcp>=1.0"]
 
+[project.urls]
+Homepage = "https://github.com/moejay/wrightty"
+Repository = "https://github.com/moejay/wrightty"
+Issues = "https://github.com/moejay/wrightty/issues"
+
 [project.scripts]
-wrightty = "wrightty.cli:main"
+wrightty-py = "wrightty.cli:main"
 
 [project.entry-points."mcp.servers"]
 wrightty = "wrightty.mcp_server:serve"

@@ -3,10 +3,13 @@ name = "wrightty-client"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
 description = "Rust client SDK for the Wrightty terminal automation protocol"
 
 [dependencies]
-wrightty-protocol = { path = "../wrightty-protocol" }
+wrightty-protocol = { version = "0.1.0", path = "../wrightty-protocol" }
 jsonrpsee = { version = "0.24", features = ["ws-client"] }
 tokio = { version = "1", features = ["full"] }
 serde = { version = "1", features = ["derive"] }

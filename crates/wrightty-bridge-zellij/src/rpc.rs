@@ -100,7 +100,7 @@ fn key_event_to_escape(event: &KeyEvent) -> String {
         return format!("\x1b{inner}");
     }
 
-    let base = match &event.key {
+    match &event.key {
         KeyType::Char => {
             let ch = event.char.as_deref().unwrap_or("");
             if has_ctrl && ch.len() == 1 {
@@ -142,9 +142,7 @@ fn key_event_to_escape(event: &KeyEvent) -> String {
                 _ => String::new(),
             }
         }
-    };
-
-    base
+    }
 }
 
 pub fn build_rpc_module() -> anyhow::Result<RpcModule<()>> {

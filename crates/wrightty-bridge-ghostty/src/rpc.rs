@@ -44,7 +44,7 @@ fn shorthand_to_xdotool(s: &str) -> String {
         // xdotool uses "ctrl+c" style, just lowercase it
         return s
             .split('+')
-            .map(|part| normalize_key_name(part))
+            .map(normalize_key_name)
             .collect::<Vec<_>>()
             .join("+");
     }

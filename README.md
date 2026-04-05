@@ -4,54 +4,109 @@ A CDP-like protocol for terminal automation. Control any terminal emulator progr
 
 Built for AI coding agents that need to interact with terminals the way humans do.
 
-## How it works
+## Install
 
-Wrightty exposes terminal state over a WebSocket. You connect, send JSON-RPC commands, and get back structured responses. It works in two modes:
+### One-liner (Linux / macOS)
 
-**Mode 1 — Headless daemon:** Wrightty spawns its own PTY and runs a virtual terminal (using Alacritty's terminal emulator). No GUI needed. Good for CI, testing, and headless automation.
-
-**Mode 2 — Native emulator:** Your existing terminal (Alacritty, WezTerm) speaks the wrightty protocol directly. You control what's actually on your screen.
-
+```bash
+curl -fsSL https://raw.githubusercontent.com/moejay/wrightty/main/install.sh | sh
 ```
-┌──────────────┐     WebSocket      ┌──────────────────────┐
-│  Your agent  │ ◄── JSON-RPC ────► │  Terminal emulator   │
-│  or script   │                    │  (Alacritty/WezTerm/ │
-│              │                    │   headless daemon)   │
-└──────────────┘                    └──────────────────────┘
+
+### Cargo (from crates.io)
+
+```bash
+cargo install wrightty-cli
+```
+
+### From source
+
+```bash
+git clone https://github.com/moejay/wrightty.git
+cd wrightty
+cargo build --release -p wrightty-cli
+# binary is at target/release/wrightty
+```
+
+#### Feature flags
+
+The `headless` feature (enabled by default) pulls in `alacritty_terminal` for virtual PTY support. For a lighter build with only bridge support:
+
+```bash
+cargo build --release -p wrightty-cli --no-default-features --features bridge-tmux,bridge-wezterm,client
+```
+
+### SDKs
+
+```bash
+pip install wrightty          # Python
+npm install wrightty          # Node.js
 ```
 
 ## Quick start
 
-### Python SDK (easiest)
+### 1. Start a terminal server
+
+```bash
+# Headless (no GUI, great for CI/automation)
+wrightty term --headless
+
+# Or bridge to your existing terminal:
+wrightty term --bridge-tmux       # tmux (works with any terminal)
+wrightty term --bridge-wezterm    # WezTerm
+wrightty term --bridge-kitty      # Kitty
+wrightty term --bridge-ghostty    # Ghostty
+wrightty term --bridge-zellij     # Zellij
+
+# Or use the Alacritty fork with native support:
+wrightty term --alacritty
+```
+
+### 2. Control it
+
+```bash
+wrightty run "ls -la"                    # run a command, print output
+wrightty read                            # read the screen
+wrightty send-keys Ctrl+c               # send keystrokes
+wrightty screenshot --format svg -o t.svg  # take a screenshot
+wrightty wait-for "BUILD SUCCESS"        # wait for text
+wrightty discover                        # find running servers
+```
+
+### 3. Or use the SDK
+
+**Python:**
 
 ```python
 from wrightty import Terminal
 
-term = Terminal.connect()  # connects to ws://127.0.0.1:9420
-
+term = Terminal.connect()  # auto-discovers running server
 output = term.run("cargo test")
 print(output)
 
 term.wait_for("$")
 term.send_keys("Ctrl+c")
-
 svg = term.screenshot("svg")
+term.close()
 ```
 
-### CLI
+**Node.js:**
 
-```bash
-wrightty run "ls -la"
-wrightty read
-wrightty screenshot -o terminal.svg
-wrightty send-keys Ctrl+c
-wrightty wait-for "BUILD SUCCESS" --timeout 60
+```typescript
+import { Terminal } from "wrightty";
+
+const term = await Terminal.connect();
+const output = await term.run("cargo test");
+console.log(output);
+
+await term.waitFor("$");
+await term.sendKeys("Ctrl+c");
+const screenshot = await term.screenshot("svg");
+term.close();
 ```
 
-### Raw protocol
+**Raw protocol:**
 
 ```bash
-# Connect with any WebSocket client
 wscat -c ws://127.0.0.1:9420
 ```
 
@@ -59,162 +114,59 @@ wscat -c ws://127.0.0.1:9420
 {"jsonrpc":"2.0","id":1,"method":"Screen.getText","params":{"sessionId":"0"}}
 ```
 
-```json
-{"result":{"text":"moe@pop-os:~$ ls\nCargo.toml  src  tests\nmoe@pop-os:~$"}}
-```
+## Terminal modes
 
-## Setting up a terminal
+### Headless (`--headless`)
 
-### Option A: Alacritty (native, recommended)
-
-Uses a [fork of Alacritty](https://github.com/moejay/alacritty/tree/wrightty-support) with wrightty built in. Zero overhead — reads directly from Alacritty's own terminal state.
+Spawns a virtual terminal with no window. Uses Alacritty's terminal emulator under the hood. Good for CI, testing, and headless automation.
 
 ```bash
-git clone -b wrightty-support https://github.com/moejay/alacritty.git
-cd alacritty
-cargo build --features wrightty
-./target/debug/alacritty --wrightty        # default port 9420
-./target/debug/alacritty --wrightty 8080   # custom port
-```
-
-Then connect:
-
-```python
-from wrightty import Terminal
-term = Terminal.connect()  # ws://127.0.0.1:9420
-output = term.run("echo hello")
-```
-
-### Option B: WezTerm (via bridge)
-
-Works with any WezTerm installation. The bridge translates wrightty protocol calls into `wezterm cli` commands.
-
-```bash
-# Start WezTerm normally, then start the bridge:
-cargo run -p wrightty-bridge-wezterm
-
-# For flatpak WezTerm:
-WEZTERM_CMD="flatpak run --command=wezterm org.wezfurlong.wezterm" \
-  cargo run -p wrightty-bridge-wezterm
-```
-
-The bridge listens on port 9421:
-
-```python
-term = Terminal.connect("ws://127.0.0.1:9421")
-```
-
-### Option C: tmux (via bridge)
-
-Works with any running tmux server. Unlocks wrightty support for **any terminal** running inside tmux (foot, GNOME Terminal, Rio, etc.).
-
-```bash
-# Start a tmux session if you don't have one:
-tmux new-session -d -s main
-
-# Start the bridge:
-cargo run -p wrightty-bridge-tmux
-```
-
-The bridge listens on port 9441. Session IDs use tmux's `<session>:<window>.<pane>` format (e.g. `main:0.0`):
-
-```python
-term = Terminal.connect("ws://127.0.0.1:9441")
-sessions = term.list_sessions()  # lists all panes across all tmux sessions
-```
-
-### Option D: Kitty (via bridge)
-
-Works with Kitty's remote control protocol. Requires `allow_remote_control yes` in `kitty.conf`.
-
-```bash
-# Enable remote control in kitty.conf:
-#   allow_remote_control yes
-# Or launch kitty with:
-#   kitty --listen-on unix:/tmp/kitty.sock
-# And set KITTY_LISTEN_ON:
-export KITTY_LISTEN_ON=unix:/tmp/kitty.sock
-
-# Start the bridge:
-cargo run -p wrightty-bridge-kitty
-```
-
-The bridge listens on port 9461. Session IDs are kitty window IDs:
-
-```python
-term = Terminal.connect("ws://127.0.0.1:9461")
-```
-
-### Option E: Zellij (via bridge)
-
-Works with Zellij's CLI actions. Must be run from within a Zellij session.
-
-```bash
-# Start zellij first, then run the bridge from within the session:
-cargo run -p wrightty-bridge-zellij
-```
-
-The bridge listens on port 9481 and targets the focused pane in the active session:
-
-```python
-term = Terminal.connect("ws://127.0.0.1:9481")
-```
-
-### Option F: Ghostty (via bridge)
-
-Connects to a running Ghostty instance via its Unix IPC socket. Text and key injection require `xdotool` on Linux (X11) or Accessibility permissions on macOS.
-
-```bash
-# Ghostty must be running. Install xdotool for input support:
-sudo apt install xdotool   # Debian/Ubuntu
-
-# Start the bridge:
-cargo run -p wrightty-bridge-ghostty
-
-# Override socket path if needed:
-GHOSTTY_SOCKET=/run/user/1000/ghostty/sock cargo run -p wrightty-bridge-ghostty
-
-# Force input backend (xdotool | osascript | none):
-GHOSTTY_INPUT_BACKEND=xdotool cargo run -p wrightty-bridge-ghostty
-```
-
-The bridge listens on port 9501. Session IDs are Ghostty window IDs:
-
-```python
-term = Terminal.connect("ws://127.0.0.1:9501")
-```
-
-> **Native fork available:** [moejay/ghostty](https://github.com/moejay/ghostty/tree/wrightty)
-> has Wrightty built directly into Ghostty, enabling full `Screen.getText`, `Recording.*`,
-> and color palette support without xdotool. The external bridge above works with any
-> unmodified Ghostty binary as a quick-start option.
-
-### Option G: Headless daemon (no GUI)
-
-Spawns a virtual terminal with no window. Uses Alacritty's terminal emulator under the hood. Good for CI and testing.
-
-```bash
-cargo run -p wrightty-server
+wrightty term --headless
+wrightty term --headless --port 9420 --max-sessions 64
 ```
 
 ```python
-# Spawn a new session
+# Spawn a new session on the headless server
 term = Terminal.spawn(server_url="ws://127.0.0.1:9420")
 output = term.run("echo hello")
 term.close()
 ```
 
-## Python SDK
+### Alacritty (`--alacritty`)
 
-Install (zero dependencies, uses raw sockets):
+Uses a [fork of Alacritty](https://github.com/moejay/alacritty/tree/wrightty-support) with wrightty built in. Zero overhead — reads directly from Alacritty's own terminal state.
 
 ```bash
-pip install /path/to/wrightty/sdks/python
-# or
-PYTHONPATH=/path/to/wrightty/sdks/python python3 your_script.py
+# Install the fork first:
+git clone -b wrightty-support https://github.com/moejay/alacritty.git
+cd alacritty && cargo install --path alacritty --features wrightty
+
+# Then launch via wrightty:
+wrightty term --alacritty
 ```
 
-API reference:
+### Bridges
+
+Bridges translate wrightty protocol calls into your terminal's existing IPC. No terminal modifications needed.
+
+| Bridge | Command | Requirements |
+|--------|---------|-------------|
+| **tmux** | `wrightty term --bridge-tmux` | tmux server running |
+| **WezTerm** | `wrightty term --bridge-wezterm` | WezTerm running |
+| **Kitty** | `wrightty term --bridge-kitty` | `allow_remote_control yes` in kitty.conf |
+| **Zellij** | `wrightty term --bridge-zellij` | Run from within a Zellij session |
+| **Ghostty** | `wrightty term --bridge-ghostty` | Ghostty running; `xdotool` for input on Linux |
+
+For terminals without IPC (foot, GNOME Terminal, Rio, etc.), use **tmux** or **zellij** as a bridge — it works with any terminal.
+
+> **Native Ghostty fork also available:** [moejay/ghostty](https://github.com/moejay/ghostty/tree/wrightty) has Wrightty built directly into Ghostty.
+
+## Python SDK
+
+```bash
+pip install wrightty
+# or: pip install wrightty[mcp]  # for MCP server support
+```
 
 ```python
 from wrightty import Terminal
@@ -236,12 +188,9 @@ term.wait_for(r"error\[\w+\]", regex=True)
 term.send_keys("Escape", ":", "w", "q", "Enter")  # vim save & quit
 term.send_keys("Ctrl+c")                           # interrupt
 
-# Send raw text
-term.send_text("echo hello\n")
-
 # Screenshots
-svg = term.screenshot("svg")     # str
-text = term.screenshot("text")   # str
+svg = term.screenshot("svg")
+text = term.screenshot("text")
 
 # Terminal info
 cols, rows = term.get_size()
@@ -260,56 +209,97 @@ term.send_keys("Ctrl+c")
 result = term.stop_action_recording(rec_id)
 print(result["data"])  # prints a Python script that replays these actions
 
-# Recording — screen capture
-frame = term.capture_screen("svg")  # single frame
-rec_id = term.start_screen_recording(interval_ms=500)
-# ... do stuff ...
-result = term.stop_screen_recording(rec_id)  # list of SVG frames
-
 term.close()
 ```
 
-## CLI
+## Node.js SDK
 
 ```bash
-# Run commands
-wrightty run "ls -la"
-wrightty run "cargo test" --timeout 120
+npm install wrightty
+```
 
-# Read screen
-wrightty read
+```typescript
+import { Terminal } from "wrightty";
 
-# Send input
-wrightty send-text "echo hello\n"
-wrightty send-keys Ctrl+c
-wrightty send-keys Escape : w q Enter
+// Auto-discover running server
+const term = await Terminal.connect();
 
-# Wait for output
-wrightty wait-for "BUILD SUCCESS"
-wrightty wait-for "error" --regex
+// Or connect to a specific server
+const term = await Terminal.connect({ url: "ws://127.0.0.1:9420" });
 
-# Screenshots
-wrightty screenshot --format svg -o terminal.svg
+// Run commands
+const output = await term.run("cargo test", 120_000);
 
-# Recording
-wrightty record -o session.cast             # Ctrl+C to stop, asciinema-compatible
-wrightty record-actions -o script.py        # generates replayable Python script
-wrightty record-actions --format cli        # generates shell commands
+// Read screen
+const screen = await term.readScreen();
 
-# Info
-wrightty info
-wrightty size
-wrightty discover                           # find all running wrightty servers
+// Wait for text
+await term.waitFor("tests passed", 60_000);
+await term.waitFor(/error\[\w+\]/);
 
-# Connect to a different server
-wrightty --url ws://127.0.0.1:9421 run "ls"
+// Send keystrokes
+await term.sendKeys("Escape", ":", "w", "q", "Enter");
+await term.sendKeys("Ctrl+c");
+
+// Screenshots
+const svg = await term.screenshot("svg");
+
+// Terminal info
+const [cols, rows] = await term.getSize();
+const info = await term.getInfo();
+
+// Recording
+const recId = await term.startSessionRecording(true);
+await term.run("make build");
+const result = await term.stopSessionRecording(recId);
+
+term.close();
+```
+
+## CLI reference
+
+```bash
+# Server / bridge modes
+wrightty term --headless                # headless terminal server
+wrightty term --alacritty               # alacritty fork
+wrightty term --bridge-tmux             # tmux bridge
+wrightty term --bridge-wezterm          # wezterm bridge
+wrightty term --bridge-kitty            # kitty bridge
+wrightty term --bridge-zellij           # zellij bridge
+wrightty term --bridge-ghostty          # ghostty bridge
+
+# Common options for `wrightty term`
+  --host 127.0.0.1                      # bind address
+  --port 9420                           # port (default: auto-select)
+  --max-sessions 64                     # max sessions (headless)
+  --watchdog-interval 5                 # health check interval (bridges)
+
+# Client commands
+wrightty run "ls -la"                   # run command, print output
+wrightty run "cargo test" --timeout 120 # with timeout
+wrightty read                           # read terminal screen
+wrightty send-text "echo hello\n"       # send raw text
+wrightty send-keys Ctrl+c              # send keystrokes
+wrightty send-keys Escape : w q Enter  # multiple keys
+wrightty screenshot --format svg -o t.svg  # screenshot
+wrightty wait-for "BUILD SUCCESS"       # wait for text
+wrightty wait-for "error" --regex       # regex pattern
+wrightty discover                       # find servers
+wrightty discover --json                # machine-readable
+wrightty info                           # server info
+wrightty size                           # terminal dimensions
+wrightty session list                   # list sessions
+wrightty session create                 # create session (headless)
+wrightty session destroy <id>           # destroy session
+
+# Connection options (all client commands)
+  --url ws://127.0.0.1:9420             # server URL
+  --session <id>                        # session ID
 ```
 
 ## MCP Server (for Claude, Cursor, etc.)
 
 Wrightty includes an MCP server that exposes terminal control as tools for AI agents.
-
-Add to your Claude/Cursor MCP config:
 
 ```json
 {
@@ -318,7 +308,6 @@ Add to your Claude/Cursor MCP config:
       "command": "python3",
       "args": ["-m", "wrightty.mcp_server"],
       "env": {
-        "PYTHONPATH": "/path/to/wrightty/sdks/python",
         "WRIGHTTY_SOCKET": "ws://127.0.0.1:9420"
       }
     }
@@ -326,26 +315,13 @@ Add to your Claude/Cursor MCP config:
 }
 ```
 
-This gives the AI agent these tools:
-
-| Tool | Description |
-|------|-------------|
-| `run_command` | Run a shell command and return output |
-| `read_terminal` | Read the current terminal screen |
-| `send_keys` | Send keystrokes (for vim, htop, etc.) |
-| `send_text` | Send raw text input |
-| `screenshot` | Take an SVG screenshot of the terminal |
-| `wait_for_text` | Wait until specific text appears |
-| `terminal_info` | Get terminal dimensions and capabilities |
-| `start_recording` | Start session + action recording |
-| `stop_recording` | Stop recording, get asciicast + script |
-| `capture_screen_frame` | Capture a single SVG frame |
+Tools exposed: `run_command`, `read_terminal`, `send_keys`, `send_text`, `screenshot`, `wait_for_text`, `terminal_info`, `start_recording`, `stop_recording`, `capture_screen_frame`.
 
 ## Protocol
 
 The full protocol specification is in [PROTOCOL.md](PROTOCOL.md).
 
-Quick overview — 7 domains, 28 methods, all over WebSocket JSON-RPC 2.0:
+7 domains, 28 methods, all over WebSocket JSON-RPC 2.0:
 
 | Domain | Methods |
 |--------|---------|
@@ -357,78 +333,46 @@ Quick overview — 7 domains, 28 methods, all over WebSocket JSON-RPC 2.0:
 | **Recording** | `startSession`, `stopSession`, `startActions`, `stopActions`, `captureScreen`, `startVideo`, `stopVideo` |
 | **Events** | `subscribe`, `unsubscribe` — screen updates, bell, title change, shell integration |
 
-Example session:
-
-```json
-// Create a session (headless daemon mode)
-→ {"jsonrpc":"2.0","id":1,"method":"Session.create","params":{"cols":80,"rows":24}}
-← {"result":{"sessionId":"abc123"}}
-
-// Send a command
-→ {"jsonrpc":"2.0","id":2,"method":"Input.sendText","params":{"sessionId":"abc123","text":"ls\n"}}
-← {"result":{}}
-
-// Read the screen
-→ {"jsonrpc":"2.0","id":3,"method":"Screen.getText","params":{"sessionId":"abc123"}}
-← {"result":{"text":"$ ls\nCargo.toml  src  tests\n$"}}
-
-// Take a screenshot
-→ {"jsonrpc":"2.0","id":4,"method":"Screen.screenshot","params":{"sessionId":"abc123","format":"svg"}}
-← {"result":{"format":"svg","data":"<svg ...>"}}
-```
-
 ## Architecture
 
 ```
 wrightty/
 ├── crates/
-│   ├── wrightty-protocol/        # Protocol types (serde, no logic)
-│   ├── wrightty-core/            # Headless terminal engine (alacritty_terminal + PTY)
-│   ├── wrightty-server/          # WebSocket daemon (port 9420)
-│   ├── wrightty-client/          # Rust client SDK
-│   ├── wrightty-bridge-wezterm/  # WezTerm bridge (port 9421)
-│   ├── wrightty-bridge-tmux/     # tmux bridge (port 9441)
-│   ├── wrightty-bridge-kitty/    # Kitty bridge (port 9461)
-│   ├── wrightty-bridge-zellij/   # Zellij bridge (port 9481)
-│   └── wrightty-bridge-ghostty/  # Ghostty bridge (port 9501)
+│   ├── wrightty-cli/               # Unified CLI binary (this is what you install)
+│   ├── wrightty-protocol/          # Protocol types (serde, no logic)
+│   ├── wrightty-core/              # Headless terminal engine (alacritty_terminal + PTY)
+│   ├── wrightty-server/            # WebSocket daemon library
+│   ├── wrightty-client/            # Rust client SDK
+│   ├── wrightty-bridge-wezterm/    # WezTerm bridge
+│   ├── wrightty-bridge-tmux/       # tmux bridge
+│   ├── wrightty-bridge-kitty/      # Kitty bridge
+│   ├── wrightty-bridge-zellij/     # Zellij bridge
+│   └── wrightty-bridge-ghostty/    # Ghostty bridge
 ├── sdks/
-│   └── python/                   # Python SDK, CLI, MCP server
-└── PROTOCOL.md                   # Full protocol specification
+│   ├── python/                     # Python SDK + MCP server
+│   └── node/                       # Node.js/TypeScript SDK
+├── install.sh                      # One-liner installer
+└── PROTOCOL.md                     # Full protocol specification
 ```
 
 ## Terminal compatibility
 
-| Terminal | Read screen | Send input | Sessions | Screenshot | Video | Integration | Status |
-|----------|:-----------:|:----------:|:--------:|:----------:|:-----:|-------------|--------|
-| **Headless daemon** | ✅ | ✅ | ✅ | ✅ SVG | — | Built-in | ✅ Shipped |
-| **Alacritty** | ✅ | ✅ | — | ✅ SVG | ✅ mp4/gif | [Native fork](https://github.com/moejay/alacritty/tree/wrightty-support) | ✅ Shipped |
-| **WezTerm** | ✅ | ✅ | ✅ | — | — | Bridge (`wezterm cli`) | ✅ Shipped |
-| **Kitty** | ✅ | ✅ | ✅ | — | — | Bridge (`kitty @`) | ✅ Shipped |
-| **tmux** | ✅ | ✅ | ✅ | — | — | Bridge (`capture-pane` + `send-keys`) | ✅ Shipped |
-| **Zellij** | ✅ | ✅ | ✅ | — | — | Bridge (CLI actions) | ✅ Shipped |
-| **iTerm2** | ✅ | ✅ | ✅ | — | — | Bridge (Python API) | 🔜 Planned |
-| **Ghostty** | ✅ | ✅ | ✅ | ✅ text | ✅ cast | [Native fork](https://github.com/moejay/ghostty/tree/wrightty) + Bridge | ✅ Shipped |
-| **Windows Terminal** | ❌ | ❌ | ✅ create | — | — | Partial bridge (CLI) | 📋 Limited |
-| **Konsole** | ❌ | ✅ | ✅ | — | — | Bridge (D-Bus) | 📋 Partial |
-| **GNOME Terminal** | ❌ | ❌ | ✅ create | — | — | Needs VTE patch | 📋 Needs contribution |
-| **foot** | ❌ | ❌ | ❌ | — | — | Use with tmux/zellij | ➡️ Use multiplexer |
-| **Rio** | ❌ | ❌ | ❌ | — | — | Needs upstream IPC | 📋 Needs contribution |
-| **Warp** | ❌ | ❌ | ❌ | — | — | Closed source | ❌ Not feasible |
-
-**Legend:**
-- **Native fork** — wrightty protocol built directly into the emulator, zero overhead
-- **Bridge** — external process translates wrightty protocol to the terminal's existing IPC
-- **Needs contribution** — terminal has no IPC; requires adding one upstream or forking
+| Terminal | Read screen | Send input | Sessions | Screenshot | Integration |
+|----------|:-----------:|:----------:|:--------:|:----------:|-------------|
+| **Headless** | ✅ | ✅ | ✅ | ✅ text/json | `wrightty term --headless` |
+| **Alacritty** | ✅ | ✅ | — | ✅ SVG | `wrightty term --alacritty` |
+| **WezTerm** | ✅ | ✅ | ✅ | — | `wrightty term --bridge-wezterm` |
+| **Kitty** | ✅ | ✅ | ✅ | — | `wrightty term --bridge-kitty` |
+| **tmux** | ✅ | ✅ | ✅ | — | `wrightty term --bridge-tmux` |
+| **Zellij** | ✅ | ✅ | ✅ | — | `wrightty term --bridge-zellij` |
+| **Ghostty** | ✅ | ✅ | ✅ | ✅ text | `wrightty term --bridge-ghostty` |
+| **foot, GNOME Terminal, etc.** | ✅ | ✅ | ✅ | — | Use with tmux/zellij bridge |
 
 ### Adding support for a new terminal
 
-If your terminal has any way to:
-1. **Read screen content** (CLI command, socket, D-Bus, API)
-2. **Send input** (same)
+If your terminal has any way to read screen content and send input (CLI, socket, D-Bus, API), a wrightty bridge can be built. See `crates/wrightty-bridge-wezterm/` for a reference implementation.
 
-...then a wrightty bridge can be built. See `crates/wrightty-bridge-wezterm/` for a reference implementation. The bridge just translates wrightty JSON-RPC calls to whatever your terminal exposes.
-
-For terminals with no IPC at all, pair them with **tmux** or **zellij** and use that bridge instead — works with any terminal.
+For terminals with no IPC, pair them with **tmux** or **zellij** and use that bridge.
 
 ## License
 

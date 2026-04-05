@@ -9,7 +9,7 @@ from typing import Any
 from wrightty.client import WrighttyClient, WrighttyError
 
 PORT_RANGE_START = 9420
-PORT_RANGE_END = 9440
+PORT_RANGE_END = 9520
 
 
 class Terminal:
@@ -34,7 +34,7 @@ class Terminal:
 
     @staticmethod
     def discover(host: str = "127.0.0.1") -> list[dict]:
-        """Scan for running wrightty servers on ports 9420-9440.
+        """Scan for running wrightty servers on ports 9420-9520.
 
         Returns a list of dicts with keys: url, version, implementation, capabilities.
 
@@ -42,8 +42,8 @@ class Terminal:
             servers = Terminal.discover()
             for s in servers:
                 print(f"{s['url']} — {s['implementation']}")
-            # ws://127.0.0.1:9420 — alacritty-wrightty
-            # ws://127.0.0.1:9421 — wrightty-bridge-wezterm
+            # ws://127.0.0.1:9420 — wrightty (headless)
+            # ws://127.0.0.1:9421 — wrightty (wezterm bridge)
         """
         found = []
         for port in range(PORT_RANGE_START, PORT_RANGE_END + 1):
@@ -79,9 +79,9 @@ class Terminal:
             if not servers:
                 raise ConnectionError(
                     "No wrightty server found. Start one with:\n"
-                    "  alacritty --wrightty\n"
-                    "  cargo run -p wrightty-server\n"
-                    "  cargo run -p wrightty-bridge-wezterm"
+                    "  wrightty term --headless\n"
+                    "  wrightty term --bridge-tmux\n"
+                    "  wrightty term --bridge-wezterm"
                 )
             url = servers[0]["url"]
 

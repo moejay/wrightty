@@ -1,0 +1,43 @@
+[package]
+name = "wrightty-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Unified CLI for Wrightty terminal automation — server, bridges, and client in one binary"
+
+[[bin]]
+name = "wrightty"
+path = "src/main.rs"
+
+[features]
+default = ["headless", "bridge-wezterm", "bridge-tmux", "bridge-kitty", "bridge-zellij", "bridge-ghostty", "client"]
+headless = ["dep:wrightty-server", "dep:wrightty-core"]
+bridge-wezterm = ["dep:wrightty-bridge-wezterm"]
+bridge-tmux = ["dep:wrightty-bridge-tmux"]
+bridge-kitty = ["dep:wrightty-bridge-kitty"]
+bridge-zellij = ["dep:wrightty-bridge-zellij"]
+bridge-ghostty = ["dep:wrightty-bridge-ghostty"]
+client = ["dep:wrightty-client"]
+
+[dependencies]
+wrightty-protocol = { version = "0.1.0", path = "../wrightty-protocol" }
+wrightty-core = { version = "0.1.0", path = "../wrightty-core", optional = true }
+wrightty-server = { version = "0.1.0", path = "../wrightty-server", optional = true }
+wrightty-client = { version = "0.1.0", path = "../wrightty-client", optional = true }
+wrightty-bridge-wezterm = { version = "0.1.0", path = "../wrightty-bridge-wezterm", optional = true }
+wrightty-bridge-tmux = { version = "0.1.0", path = "../wrightty-bridge-tmux", optional = true }
+wrightty-bridge-kitty = { version = "0.1.0", path = "../wrightty-bridge-kitty", optional = true }
+wrightty-bridge-zellij = { version = "0.1.0", path = "../wrightty-bridge-zellij", optional = true }
+wrightty-bridge-ghostty = { version = "0.1.0", path = "../wrightty-bridge-ghostty", optional = true }
+
+clap = { version = "4", features = ["derive"] }
+tokio = { version = "1", features = ["full"] }
+jsonrpsee = { version = "0.24", features = ["server", "ws-client"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+anyhow = "1"
+serde_json = "1"
+serde = { version = "1", features = ["derive"] }

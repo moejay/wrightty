@@ -148,7 +148,7 @@ def size(ctx):
 
 @main.command()
 def discover():
-    """Discover running wrightty servers on ports 9420-9440."""
+    """Discover running wrightty servers on ports 9420-9520."""
     servers = Terminal.discover()
     if not servers:
         click.echo("No wrightty servers found.")

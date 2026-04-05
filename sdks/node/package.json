@@ -1,0 +1,44 @@
+{
+  "name": "wrightty",
+  "version": "0.1.0",
+  "description": "Node.js SDK for Wrightty terminal automation protocol",
+  "author": "Moe Jay",
+  "homepage": "https://github.com/moejay/wrightty",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/moejay/wrightty.git",
+    "directory": "sdks/node"
+  },
+  "bugs": {
+    "url": "https://github.com/moejay/wrightty/issues"
+  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "terminal",
+    "automation",
+    "tui",
+    "playwright",
+    "testing",
+    "ai",
+    "agent"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "ws": "^8.0.0"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.0.0",
+    "typescript": "^5.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

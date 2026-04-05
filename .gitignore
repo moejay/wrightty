@@ -1,1 +1,8 @@
 /target
+**/__pycache__/
+**/*.pyc
+**/node_modules/
+sdks/node/dist/
+sdks/python/dist/
+sdks/python/*.egg-info/
+*.deb

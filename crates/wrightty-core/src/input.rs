@@ -68,17 +68,15 @@ fn encode_shorthand(s: &str, out: &mut Vec<u8>) {
     }
 
     // Function keys like "F5"
-    if s.starts_with('F') {
-        if let Ok(n) = s[1..].parse::<u8>() {
-            let event = KeyEvent {
-                key: KeyType::F,
-                char: None,
-                n: Some(n),
-                modifiers: vec![],
-            };
-            encode_key_event(&event, out);
-            return;
-        }
+    if let Some(rest) = s.strip_prefix('F') && let Ok(n) = rest.parse::<u8>() {
+        let event = KeyEvent {
+            key: KeyType::F,
+            char: None,
+            n: Some(n),
+            modifiers: vec![],
+        };
+        encode_key_event(&event, out);
+        return;
     }
 
     // Fallback: send as raw text
@@ -111,21 +109,19 @@ fn encode_key_event(event: &KeyEvent, out: &mut Vec<u8>) {
 
     match &event.key {
         KeyType::Char => {
-            if let Some(ref ch) = event.char {
-                if let Some(c) = ch.chars().next() {
-                    if has_ctrl {
-                        // Ctrl+letter = letter & 0x1f
-                        let ctrl_byte = (c.to_ascii_lowercase() as u8) & 0x1f;
-                        if has_alt {
-                            out.push(0x1b);
-                        }
-                        out.push(ctrl_byte);
-                    } else if has_alt {
+            if let Some(ref ch) = event.char && let Some(c) = ch.chars().next() {
+                if has_ctrl {
+                    // Ctrl+letter = letter & 0x1f
+                    let ctrl_byte = (c.to_ascii_lowercase() as u8) & 0x1f;
+                    if has_alt {
                         out.push(0x1b);
-                        out.extend_from_slice(ch.as_bytes());
-                    } else {
-                        out.extend_from_slice(ch.as_bytes());
                     }
+                    out.push(ctrl_byte);
+                } else if has_alt {
+                    out.push(0x1b);
+                    out.extend_from_slice(ch.as_bytes());
+                } else {
+                    out.extend_from_slice(ch.as_bytes());
                 }
             }
         }

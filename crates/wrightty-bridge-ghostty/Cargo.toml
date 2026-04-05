@@ -3,6 +3,9 @@ name = "wrightty-bridge-ghostty"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
 description = "Bridge that translates wrightty protocol calls into Ghostty IPC commands"
 
 [[bin]]
@@ -10,7 +13,7 @@ name = "wrightty-bridge-ghostty"
 path = "src/main.rs"
 
 [dependencies]
-wrightty-protocol = { path = "../wrightty-protocol" }
+wrightty-protocol = { version = "0.1.0", path = "../wrightty-protocol" }
 
 jsonrpsee = { version = "0.24", features = ["server"] }
 tokio = { version = "1", features = ["full"] }

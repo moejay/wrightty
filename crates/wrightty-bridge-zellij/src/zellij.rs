@@ -79,7 +79,7 @@ pub async fn list_sessions() -> Result<Vec<ZellijSession>, ZellijError> {
     let sessions: Vec<ZellijSession> = stdout
         .lines()
         .filter_map(|line| {
-            let name = line.trim().split_whitespace().next()?.to_string();
+            let name = line.split_whitespace().next()?.to_string();
             if name.is_empty() { None } else { Some(ZellijSession { name }) }
         })
         .collect();

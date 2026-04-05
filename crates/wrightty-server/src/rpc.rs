@@ -431,7 +431,7 @@ pub fn build_rpc_module(state: AppState) -> anyhow::Result<RpcModule<AppState>> 
         for frame in &rec.frames {
             // Each frame: clear screen then write content
             let clear = "\\u001b[2J\\u001b[H";
-            let mut data = frame.text.replace('\\', "\\\\")
+            let data = frame.text.replace('\\', "\\\\")
                 .replace('"', "\\\"")
                 .replace('\n', "\\r\\n")
                 .replace('\r', "\\r");

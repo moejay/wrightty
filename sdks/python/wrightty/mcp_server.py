@@ -35,28 +35,28 @@ _session_id: str = "0"
 _prompt_pattern = r"[$#>%]\s*$"
 
 
-async def get_client() -> WrighttyClient:
+def get_client() -> WrighttyClient:
     global _client
     if _client is None:
         url = os.environ.get("WRIGHTTY_SOCKET", "ws://127.0.0.1:9420")
-        _client = await WrighttyClient.connect(url)
+        _client = WrighttyClient.connect(url)
     return _client
 
 
-async def read_screen() -> str:
-    client = await get_client()
-    result = await client.request("Screen.getText", {"sessionId": _session_id})
+def read_screen() -> str:
+    client = get_client()
+    result = client.request("Screen.getText", {"sessionId": _session_id})
     return result["text"]
 
 
 async def wait_for_prompt(timeout: float = 10) -> str:
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
-        screen = await read_screen()
+        screen = await asyncio.to_thread(read_screen)
         if re.search(_prompt_pattern, screen):
             return screen
         await asyncio.sleep(0.2)
-    return await read_screen()
+    return await asyncio.to_thread(read_screen)
 
 
 app = Server("wrightty")
@@ -260,32 +260,28 @@ async def list_tools() -> list[Tool]:
 
 @app.call_tool()
 async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent | ImageContent]:
-    client = await get_client()
+    client = get_client()
 
     if name == "run_command":
         command = arguments["command"]
         timeout = arguments.get("timeout", 30)
 
-        # Read screen before.
-        before = await read_screen()
-
         # Send command.
-        await client.request(
-            "Input.sendText", {"sessionId": _session_id, "text": command + "\n"}
+        await asyncio.to_thread(
+            client.request, "Input.sendText", {"sessionId": _session_id, "text": command + "\n"}
         )
 
         # Wait for prompt to return.
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
-            screen = await read_screen()
-            # Check if prompt appeared after the command.
+            screen = await asyncio.to_thread(read_screen)
             lines = screen.strip().split("\n")
             if lines and re.search(_prompt_pattern, lines[-1]) and command not in lines[-1]:
                 break
             await asyncio.sleep(0.3)
 
         # Read final screen and extract output.
-        screen = await read_screen()
+        screen = await asyncio.to_thread(read_screen)
         lines = screen.strip().split("\n")
 
         output_lines = []
@@ -303,27 +299,31 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent | 
         return [TextContent(type="text", text=output)]
 
     elif name == "read_terminal":
-        screen = await read_screen()
+        screen = await asyncio.to_thread(read_screen)
         return [TextContent(type="text", text=screen)]
 
     elif name == "send_keys":
         keys = arguments["keys"]
-        await client.request("Input.sendKeys", {"sessionId": _session_id, "keys": keys})
+        await asyncio.to_thread(
+            client.request, "Input.sendKeys", {"sessionId": _session_id, "keys": keys}
+        )
         await asyncio.sleep(0.3)
-        screen = await read_screen()
+        screen = await asyncio.to_thread(read_screen)
         return [TextContent(type="text", text=screen)]
 
     elif name == "send_text":
         text = arguments["text"]
-        await client.request("Input.sendText", {"sessionId": _session_id, "text": text})
+        await asyncio.to_thread(
+            client.request, "Input.sendText", {"sessionId": _session_id, "text": text}
+        )
         await asyncio.sleep(0.3)
-        screen = await read_screen()
+        screen = await asyncio.to_thread(read_screen)
         return [TextContent(type="text", text=screen)]
 
     elif name == "screenshot":
         fmt = arguments.get("format", "svg")
-        result = await client.request(
-            "Screen.screenshot", {"sessionId": _session_id, "format": fmt}
+        result = await asyncio.to_thread(
+            client.request, "Screen.screenshot", {"sessionId": _session_id, "format": fmt}
         )
         return [TextContent(type="text", text=result["data"])]
 
@@ -334,7 +334,7 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent | 
 
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
-            screen = await read_screen()
+            screen = await asyncio.to_thread(read_screen)
             if is_regex:
                 if re.search(pattern, screen):
                     return [TextContent(type="text", text=screen)]
@@ -346,25 +346,27 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent | 
         return [TextContent(type="text", text=f"Timeout: '{pattern}' not found after {timeout}s")]
 
     elif name == "terminal_info":
-        info = await client.request("Wrightty.getInfo")
-        size = await client.request("Terminal.getSize", {"sessionId": _session_id})
+        info = await asyncio.to_thread(client.request, "Wrightty.getInfo")
+        size = await asyncio.to_thread(
+            client.request, "Terminal.getSize", {"sessionId": _session_id}
+        )
         info["size"] = size
         return [TextContent(type="text", text=json.dumps(info, indent=2))]
 
     elif name == "start_recording":
         results = {}
 
-        # Start session recording (asciicast).
         include_input = arguments.get("include_input", False)
-        result = await client.request(
+        result = await asyncio.to_thread(
+            client.request,
             "Recording.startSession",
             {"sessionId": _session_id, "includeInput": include_input},
         )
         results["sessionRecordingId"] = result["recordingId"]
 
-        # Optionally start action recording.
         if arguments.get("record_actions", True):
-            result = await client.request(
+            result = await asyncio.to_thread(
+                client.request,
                 "Recording.startActions",
                 {"sessionId": _session_id, "format": "python"},
             )
@@ -377,14 +379,15 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent | 
 
         session_id = arguments.get("session_recording_id")
         if session_id:
-            result = await client.request("Recording.stopSession", {"recordingId": session_id})
+            result = await asyncio.to_thread(
+                client.request, "Recording.stopSession", {"recordingId": session_id}
+            )
             results["session"] = {
                 "format": result.get("format"),
                 "duration": result.get("duration"),
                 "events": result.get("events"),
                 "data_length": len(result.get("data", "")),
             }
-            # Save asciicast to a temp file.
             import tempfile
             cast_file = tempfile.NamedTemporaryFile(suffix=".cast", delete=False, mode="w")
             cast_file.write(result["data"])
@@ -393,7 +396,9 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent | 
 
         action_id = arguments.get("action_recording_id")
         if action_id:
-            result = await client.request("Recording.stopActions", {"recordingId": action_id})
+            result = await asyncio.to_thread(
+                client.request, "Recording.stopActions", {"recordingId": action_id}
+            )
             results["actions"] = {
                 "format": result.get("format"),
                 "actions": result.get("actions"),
@@ -405,7 +410,8 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent | 
 
     elif name == "capture_screen_frame":
         fmt = arguments.get("format", "svg")
-        result = await client.request(
+        result = await asyncio.to_thread(
+            client.request,
             "Recording.captureScreen",
             {"sessionId": _session_id, "format": fmt},
         )

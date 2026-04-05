@@ -3,11 +3,14 @@ name = "wrightty-server"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
 description = "WebSocket JSON-RPC daemon for Wrightty"
 
 [dependencies]
-wrightty-protocol = { path = "../wrightty-protocol" }
-wrightty-core = { path = "../wrightty-core" }
+wrightty-protocol = { version = "0.1.0", path = "../wrightty-protocol" }
+wrightty-core = { version = "0.1.0", path = "../wrightty-core" }
 
 jsonrpsee = { version = "0.24", features = ["server"] }
 tokio = { version = "1", features = ["full"] }

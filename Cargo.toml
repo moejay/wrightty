@@ -5,6 +5,7 @@ members = [
     "crates/wrightty-core",
     "crates/wrightty-server",
     "crates/wrightty-client",
+    "crates/wrightty-cli",
     "crates/wrightty-bridge-wezterm",
     "crates/wrightty-bridge-tmux",
     "crates/wrightty-bridge-kitty",
@@ -16,6 +17,9 @@ members = [
 version = "0.1.0"
 edition = "2024"
 license = "MIT"
+authors = ["Moe Jay"]
+repository = "https://github.com/moejay/wrightty"
+homepage = "https://github.com/moejay/wrightty"
 
 # Root package for integration tests
 [package]
@@ -25,10 +29,10 @@ edition.workspace = true
 publish = false
 
 [dev-dependencies]
-wrightty-protocol = { path = "crates/wrightty-protocol" }
-wrightty-core = { path = "crates/wrightty-core" }
-wrightty-server = { path = "crates/wrightty-server" }
-wrightty-client = { path = "crates/wrightty-client" }
+wrightty-protocol = { version = "0.1.0", path = "crates/wrightty-protocol" }
+wrightty-core = { version = "0.1.0", path = "crates/wrightty-core" }
+wrightty-server = { version = "0.1.0", path = "crates/wrightty-server" }
+wrightty-client = { version = "0.1.0", path = "crates/wrightty-client" }
 jsonrpsee = { version = "0.24", features = ["server"] }
 tokio = { version = "1", features = ["full"] }
 serde_json = "1"

@@ -3,6 +3,9 @@ name = "wrightty-protocol"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
 description = "Protocol types for the Wrightty terminal automation protocol"
 
 [dependencies]
