@@ -94,20 +94,39 @@ jobs:
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
         run: |
-          # Publish in dependency order, waiting for each to be indexed
-          cargo publish -p wrightty-protocol
-          sleep 30
-          cargo publish -p wrightty-core
-          sleep 30
-          cargo publish -p wrightty-server
-          cargo publish -p wrightty-client
-          cargo publish -p wrightty-bridge-wezterm
-          cargo publish -p wrightty-bridge-tmux
-          cargo publish -p wrightty-bridge-kitty
-          cargo publish -p wrightty-bridge-zellij
-          cargo publish -p wrightty-bridge-ghostty
-          sleep 30
-          cargo publish -p wrightty
+          # Publish in dependency order, skipping crates already at this version.
+          # crates.io rate limits new crates to ~5 burst then 1 per 10 min.
+          VERSION="0.1.0"
+          publish_if_needed() {
+            local crate=$1
+            local wait_after=${2:-30}
+            local existing
+            existing=$(curl -sf -H "User-Agent: wrightty-ci" \
+              "https://crates.io/api/v1/crates/$crate" 2>/dev/null | \
+              grep -o "\"num\":\"$VERSION\"" | head -1)
+            if [ -n "$existing" ]; then
+              echo "Skipping $crate: v$VERSION already published"
+              return 0
+            fi
+            echo "Publishing $crate v$VERSION..."
+            cargo publish -p "$crate"
+            echo "Waiting ${wait_after}s for indexing / rate limit..."
+            sleep "$wait_after"
+          }
+          # Level 0: no internal deps
+          publish_if_needed wrightty-protocol 30
+          # Level 1: depend on protocol
+          publish_if_needed wrightty-core 30
+          publish_if_needed wrightty-client 30
+          publish_if_needed wrightty-bridge-wezterm 30
+          publish_if_needed wrightty-bridge-tmux 30
+          publish_if_needed wrightty-bridge-kitty 30
+          publish_if_needed wrightty-bridge-zellij 30
+          publish_if_needed wrightty-bridge-ghostty 30
+          # Level 2: depend on core/protocol
+          publish_if_needed wrightty-server 30
+          # Level 3: depends on everything
+          publish_if_needed wrightty 0
 
   publish-npm:
     needs: release
