@@ -22,6 +22,10 @@ pub struct ConnectOpts {
     /// Session ID (default: first available)
     #[arg(long, global = true)]
     session: Option<String>,
+
+    /// Password for server authentication
+    #[arg(long, global = true)]
+    password: Option<String>,
 }
 
 async fn connect(opts: &ConnectOpts) -> anyhow::Result<(WrighttyClient, String)> {
@@ -32,6 +36,15 @@ async fn connect(opts: &ConnectOpts) -> anyhow::Result<(WrighttyClient, String)>
 
     let client = e(WrighttyClient::connect(&url).await)
         .map_err(|err| anyhow::anyhow!("Failed to connect to {url}: {err}"))?;
+
+    // Check if authentication is required
+    let info = e(client.get_info().await)?;
+    if matches!(info.authentication, wrightty_protocol::types::AuthenticationMode::Password) {
+        let password = opts.password.as_deref().ok_or_else(|| {
+            anyhow::anyhow!("Server requires authentication. Use --password <password>")
+        })?;
+        e(client.authenticate(password).await)?;
+    }
 
     let session_id = match &opts.session {
         Some(s) => s.clone(),
