@@ -9,7 +9,7 @@ homepage.workspace = true
 description = "Rust client SDK for the Wrightty terminal automation protocol"
 
 [dependencies]
-wrightty-protocol = { version = "0.2.1", path = "../wrightty-protocol" }
+wrightty-protocol = { version = "0.2.2", path = "../wrightty-protocol" }
 jsonrpsee = { version = "0.24", features = ["ws-client"] }
 tokio = { version = "1", features = ["full"] }
 serde = { version = "1", features = ["derive"] }
