@@ -96,7 +96,7 @@ jobs:
         run: |
           # Publish in dependency order, skipping crates already at this version.
           # crates.io rate limits new crates to ~5 burst then 1 per 10 min.
-          VERSION="0.1.1"
+          VERSION="0.2.0"
           publish_if_needed() {
             local crate=$1
             local wait_after=${2:-30}

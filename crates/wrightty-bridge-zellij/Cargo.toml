@@ -13,7 +13,7 @@ name = "wrightty-bridge-zellij"
 path = "src/main.rs"
 
 [dependencies]
-wrightty-protocol = { version = "0.1.1", path = "../wrightty-protocol" }
+wrightty-protocol = { version = "0.2.0", path = "../wrightty-protocol" }
 
 jsonrpsee = { version = "0.24", features = ["server"] }
 tokio = { version = "1", features = ["full"] }

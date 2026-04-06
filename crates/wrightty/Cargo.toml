@@ -23,15 +23,15 @@ bridge-ghostty = ["dep:wrightty-bridge-ghostty"]
 client = ["dep:wrightty-client"]
 
 [dependencies]
-wrightty-protocol = { version = "0.1.1", path = "../wrightty-protocol" }
-wrightty-core = { version = "0.1.1", path = "../wrightty-core", optional = true }
-wrightty-server = { version = "0.1.1", path = "../wrightty-server", optional = true }
-wrightty-client = { version = "0.1.1", path = "../wrightty-client", optional = true }
-wrightty-bridge-wezterm = { version = "0.1.1", path = "../wrightty-bridge-wezterm", optional = true }
-wrightty-bridge-tmux = { version = "0.1.1", path = "../wrightty-bridge-tmux", optional = true }
-wrightty-bridge-kitty = { version = "0.1.1", path = "../wrightty-bridge-kitty", optional = true }
-wrightty-bridge-zellij = { version = "0.1.1", path = "../wrightty-bridge-zellij", optional = true }
-wrightty-bridge-ghostty = { version = "0.1.1", path = "../wrightty-bridge-ghostty", optional = true }
+wrightty-protocol = { version = "0.2.0", path = "../wrightty-protocol" }
+wrightty-core = { version = "0.2.0", path = "../wrightty-core", optional = true }
+wrightty-server = { version = "0.2.0", path = "../wrightty-server", optional = true }
+wrightty-client = { version = "0.2.0", path = "../wrightty-client", optional = true }
+wrightty-bridge-wezterm = { version = "0.2.0", path = "../wrightty-bridge-wezterm", optional = true }
+wrightty-bridge-tmux = { version = "0.2.0", path = "../wrightty-bridge-tmux", optional = true }
+wrightty-bridge-kitty = { version = "0.2.0", path = "../wrightty-bridge-kitty", optional = true }
+wrightty-bridge-zellij = { version = "0.2.0", path = "../wrightty-bridge-zellij", optional = true }
+wrightty-bridge-ghostty = { version = "0.2.0", path = "../wrightty-bridge-ghostty", optional = true }
 
 clap = { version = "4", features = ["derive"] }
 tokio = { version = "1", features = ["full"] }
