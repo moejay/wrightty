@@ -4,6 +4,7 @@ use tracing_subscriber::EnvFilter;
 mod discover;
 mod server;
 mod term;
+mod version;
 
 #[cfg(feature = "client")]
 mod client_cmds;
@@ -27,6 +28,9 @@ enum Commands {
 
     /// Discover running wrightty servers
     Discover(discover::DiscoverArgs),
+
+    /// Check for updates and upgrade wrightty
+    Upgrade,
 
     /// Run a command and print its output
     #[cfg(feature = "client")]
@@ -75,9 +79,15 @@ async fn main() -> anyhow::Result<()> {
 
     let cli = Cli::parse();
 
+    // Background version check (non-blocking, cached 24h)
+    if !matches!(cli.command, Commands::Upgrade | Commands::Term(_)) {
+        version::check_in_background();
+    }
+
     match cli.command {
         Commands::Term(args) => term::run(args).await,
         Commands::Discover(args) => discover::run(args).await,
+        Commands::Upgrade => version::upgrade().await,
         #[cfg(feature = "client")]
         Commands::Run(args) => client_cmds::run_cmd(args).await,
         #[cfg(feature = "client")]

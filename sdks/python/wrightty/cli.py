@@ -217,5 +217,33 @@ def record_actions(ctx, output, fmt):
         term.close()
 
 
+@main.command()
+def upgrade():
+    """Check for updates and upgrade wrightty Python SDK."""
+    import subprocess
+    from wrightty import __version__
+
+    click.echo(f"Current version: {__version__}")
+    click.echo("Checking for updates...")
+
+    try:
+        result = subprocess.run(
+            [sys.executable, "-m", "pip", "install", "--upgrade", "wrightty"],
+            capture_output=True, text=True,
+        )
+        if result.returncode == 0:
+            if "already satisfied" in result.stdout.lower() or "already up-to-date" in result.stdout.lower():
+                click.echo(f"Already up to date (v{__version__}).")
+            else:
+                click.echo("Upgraded successfully. Restart to use the new version.")
+        else:
+            click.echo(f"Upgrade failed: {result.stderr.strip()}", err=True)
+            sys.exit(1)
+    except Exception as e:
+        click.echo(f"Upgrade failed: {e}", err=True)
+        click.echo("Try manually: pip install --upgrade wrightty")
+        sys.exit(1)
+
+
 if __name__ == "__main__":
     main()

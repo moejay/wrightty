@@ -21,6 +21,7 @@ Usage:
   wrightty-js info                            Show server info
   wrightty-js size                            Get terminal dimensions
   wrightty-js discover                        Find running servers
+  wrightty-js upgrade                         Check for updates and upgrade
 
 Options:
   --url <url>         Server URL (default: auto-discover)
@@ -135,6 +136,21 @@ async function main() {
         const [cols, rows] = await term.getSize();
         console.log(`${cols}x${rows}`);
         term.close();
+        break;
+      }
+
+      case "upgrade": {
+        const pkg = require("../package.json");
+        console.log(`Current version: ${pkg.version}`);
+        console.log("Upgrading...");
+        const { execSync } = require("child_process");
+        try {
+          execSync("npm install -g @moejay/wrightty@latest", { stdio: "inherit" });
+          console.log("Upgraded successfully.");
+        } catch {
+          console.error("Upgrade failed. Try manually: npm install -g @moejay/wrightty@latest");
+          process.exit(1);
+        }
         break;
       }
 
