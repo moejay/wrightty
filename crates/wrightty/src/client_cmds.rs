@@ -4,7 +4,7 @@ use clap::{Args, Subcommand};
 use wrightty_client::WrighttyClient;
 use wrightty_protocol::types::*;
 
-use crate::server::{PORT_RANGE_START, PORT_RANGE_END};
+use crate::discover;
 
 /// Convert `Box<dyn Error>` from WrighttyClient into anyhow::Error.
 fn e<T>(r: Result<T, Box<dyn std::error::Error>>) -> anyhow::Result<T> {
@@ -27,7 +27,7 @@ pub struct ConnectOpts {
 async fn connect(opts: &ConnectOpts) -> anyhow::Result<(WrighttyClient, String)> {
     let url = match &opts.url {
         Some(u) => u.clone(),
-        None => discover_first().await?,
+        None => discover_first_url().await?,
     };
 
     let client = e(WrighttyClient::connect(&url).await)
@@ -47,35 +47,16 @@ async fn connect(opts: &ConnectOpts) -> anyhow::Result<(WrighttyClient, String)>
     Ok((client, session_id))
 }
 
-async fn discover_first() -> anyhow::Result<String> {
-    use jsonrpsee::core::client::ClientT;
-    use jsonrpsee::core::params::ObjectParams;
-    use jsonrpsee::ws_client::WsClientBuilder;
-
-    for port in PORT_RANGE_START..=PORT_RANGE_END {
-        let url = format!("ws://127.0.0.1:{port}");
-        let Ok(client) = WsClientBuilder::default()
-            .connection_timeout(std::time::Duration::from_millis(100))
-            .build(&url)
-            .await
-        else {
-            continue;
-        };
-        let Ok(_): Result<serde_json::Value, _> =
-            client.request("Wrightty.getInfo", ObjectParams::new()).await
-        else {
-            continue;
-        };
-        return Ok(url);
-    }
-
-    anyhow::bail!(
-        "No wrightty server found on ports {PORT_RANGE_START}-{PORT_RANGE_END}.\n\
-         Start one with:\n  \
-         wrightty term --headless\n  \
-         wrightty term --bridge-tmux\n  \
-         wrightty term --bridge-wezterm"
-    )
+async fn discover_first_url() -> anyhow::Result<String> {
+    discover::discover_first("127.0.0.1").await.ok_or_else(|| {
+        anyhow::anyhow!(
+            "No wrightty server found.\n\
+             Start one with:\n  \
+             wrightty term --headless\n  \
+             wrightty term --bridge-tmux\n  \
+             wrightty term --bridge-wezterm"
+        )
+    })
 }
 
 // --- Commands ---
