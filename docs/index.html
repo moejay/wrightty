@@ -125,8 +125,19 @@
     .btn-secondary:hover { border-color: var(--accent); transform: translateY(-1px); }
 
     /* --- Terminal demo --- */
+    .dual-terminal {
+      display: flex; gap: 0; align-items: stretch;
+      max-width: 960px; margin: 3rem auto 0;
+    }
+    .terminal-arrow {
+      display: flex; align-items: center; justify-content: center;
+      width: 40px; flex-shrink: 0;
+      font-size: 1.5rem; color: var(--text-dim);
+      transition: color 0.3s;
+    }
+    .terminal-arrow.active-right { color: var(--accent-bright); }
+    .terminal-arrow.active-left { color: var(--green); }
     .terminal-demo {
-      max-width: 720px; margin: 3rem auto 0;
       background: var(--bg-code); border: 1px solid var(--border);
       border-radius: var(--radius); overflow: hidden;
       box-shadow: 0 20px 60px rgba(0,0,0,0.5);
@@ -151,8 +162,8 @@
     .terminal-body {
       padding: 1.25rem;
       font-family: 'JetBrains Mono', monospace;
-      font-size: 0.85rem; line-height: 1.7;
-      min-height: 240px;
+      font-size: 0.8rem; line-height: 1.7;
+      min-height: 280px;
     }
     .terminal-body .prompt { color: var(--green); }
     .terminal-body .cmd { color: var(--text); }
@@ -318,12 +329,19 @@
     footer a:hover { text-decoration: underline; }
 
     /* --- Responsive --- */
+    @media (max-width: 840px) {
+      .dual-terminal { flex-direction: column; max-width: 480px; }
+      .terminal-arrow {
+        width: 100%; height: 30px;
+        transform: rotate(90deg);
+      }
+    }
     @media (max-width: 640px) {
       nav { padding: 0.75rem 1rem; }
       .nav-links { gap: 0.75rem; }
       .hero { padding: 7rem 1.25rem 3rem; }
       section { padding: 3rem 1.25rem; }
-      .terminal-body { font-size: 0.75rem; padding: 1rem; }
+      .terminal-body { font-size: 0.7rem; padding: 0.75rem; min-height: 220px; }
     }
   </style>
 </head>
@@ -357,15 +375,28 @@
     </a>
   </div>
 
-  <div class="terminal-demo">
-    <div class="terminal-bar">
-      <div class="terminal-dot r"></div>
-      <div class="terminal-dot y"></div>
-      <div class="terminal-dot g"></div>
-      <div class="terminal-title">wrightty</div>
-      <div style="width: 36px;"></div>
+  <div class="dual-terminal">
+    <div class="terminal-demo" style="flex:1; min-width:0;">
+      <div class="terminal-bar">
+        <div class="terminal-dot r"></div>
+        <div class="terminal-dot y"></div>
+        <div class="terminal-dot g"></div>
+        <div class="terminal-title">your script / agent</div>
+        <div style="width: 36px;"></div>
+      </div>
+      <div class="terminal-body" id="term-controller"></div>
     </div>
-    <div class="terminal-body" id="term-demo"></div>
+    <div class="terminal-arrow" id="demo-arrow">&nbsp;</div>
+    <div class="terminal-demo" style="flex:1; min-width:0;">
+      <div class="terminal-bar">
+        <div class="terminal-dot r"></div>
+        <div class="terminal-dot y"></div>
+        <div class="terminal-dot g"></div>
+        <div class="terminal-title">target terminal</div>
+        <div style="width: 36px;"></div>
+      </div>
+      <div class="terminal-body" id="term-target"></div>
+    </div>
   </div>
 </div>
 
@@ -648,73 +679,167 @@ function showTab(name) {
   event.target.classList.add('active');
 }
 
-// Terminal typing animation
-const lines = [
-  { type: 'input', text: 'wrightty term --headless &' },
-  { type: 'output', text: 'wrightty (headless) listening on ws://127.0.0.1:9420' },
-  { type: 'pause', ms: 600 },
-  { type: 'input', text: 'wrightty run "echo hello world"' },
-  { type: 'output', text: 'hello world' },
-  { type: 'pause', ms: 400 },
-  { type: 'input', text: 'wrightty send-keys Ctrl+c' },
-  { type: 'pause', ms: 300 },
-  { type: 'input', text: 'wrightty screenshot --format svg -o demo.svg' },
-  { type: 'output', text: 'Screenshot saved to demo.svg' },
-  { type: 'pause', ms: 400 },
-  { type: 'input', text: 'wrightty discover' },
-  { type: 'output', text: '  ws://127.0.0.1:9420  wrightty-server v0.1.0' },
-];
-
-const term = document.getElementById('term-demo');
-let lineIdx = 0;
+// Dual-terminal animation
+const ctrl = document.getElementById('term-controller');
+const tgt  = document.getElementById('term-target');
+const arrow = document.getElementById('demo-arrow');
 
 async function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 async function typeLine(text, el) {
   for (const ch of text) {
     el.textContent += ch;
-    await sleep(25 + Math.random() * 20);
+    await sleep(22 + Math.random() * 18);
   }
+}
+
+function addLine(term, cls, text) {
+  const row = document.createElement('div');
+  row.className = cls;
+  row.textContent = text;
+  term.appendChild(row);
+  return row;
+}
+
+function addPrompt(term) {
+  const row = document.createElement('div');
+  const p = document.createElement('span');
+  p.className = 'prompt';
+  p.textContent = '$ ';
+  row.appendChild(p);
+  const cmd = document.createElement('span');
+  cmd.className = 'cmd';
+  row.appendChild(cmd);
+  term.appendChild(row);
+  return cmd;
+}
+
+function addCursor(term) {
+  const row = document.createElement('div');
+  const p = document.createElement('span');
+  p.className = 'prompt';
+  p.textContent = '$ ';
+  row.appendChild(p);
+  const c = document.createElement('span');
+  c.className = 'cursor';
+  c.innerHTML = ' ';
+  row.appendChild(c);
+  term.appendChild(row);
+}
+
+function flashArrow(dir) {
+  arrow.textContent = dir === 'right' ? '\u25B6' : '\u25C0';
+  arrow.className = 'terminal-arrow ' + (dir === 'right' ? 'active-right' : 'active-left');
+  setTimeout(() => { arrow.className = 'terminal-arrow'; arrow.textContent = '\u00B7'; }, 600);
 }
 
 async function runDemo() {
   while (true) {
-    term.innerHTML = '';
-    for (const line of lines) {
-      if (line.type === 'pause') {
-        await sleep(line.ms);
-        continue;
-      }
-      const row = document.createElement('div');
-      if (line.type === 'input') {
-        const prompt = document.createElement('span');
-        prompt.className = 'prompt';
-        prompt.textContent = '$ ';
-        row.appendChild(prompt);
-        const cmd = document.createElement('span');
-        cmd.className = 'cmd';
-        row.appendChild(cmd);
-        term.appendChild(row);
-        await typeLine(line.text, cmd);
-        await sleep(200);
-      } else {
-        row.className = 'output';
-        row.textContent = line.text;
-        term.appendChild(row);
-        await sleep(100);
-      }
-    }
-    // Add cursor at end
-    const last = document.createElement('div');
-    const p = document.createElement('span');
-    p.className = 'prompt';
-    p.textContent = '$ ';
-    last.appendChild(p);
-    const c = document.createElement('span');
-    c.className = 'cursor';
-    c.innerHTML = '&nbsp;';
-    last.appendChild(c);
-    term.appendChild(last);
+    ctrl.innerHTML = '';
+    tgt.innerHTML = '';
+    arrow.textContent = '\u00B7';
+    arrow.className = 'terminal-arrow';
+
+    // Target terminal starts with a prompt
+    addLine(tgt, '', '');
+    addLine(tgt, 'output', 'moe@dev:~/project$');
+
+    // Step 1: connect
+    addLine(ctrl, 'cm', '# connect to the running terminal');
+    await sleep(400);
+    let cmd = addPrompt(ctrl);
+    await typeLine('wrightty read', cmd);
+    await sleep(300);
+    flashArrow('left');
+    await sleep(400);
+    addLine(ctrl, 'output', 'moe@dev:~/project$');
+    addLine(ctrl, 'cm', '# ^ that\'s what\'s on the other screen');
+    await sleep(800);
+
+    // Step 2: send a command to the target
+    addLine(ctrl, '', '');
+    addLine(ctrl, 'cm', '# run a command on the target terminal');
+    cmd = addPrompt(ctrl);
+    await typeLine('wrightty run "cargo test"', cmd);
+    await sleep(200);
+    flashArrow('right');
+    await sleep(300);
+
+    // Target shows the command appearing
+    tgt.innerHTML = '';
+    addLine(tgt, '', '');
+    const tgtCmd = document.createElement('div');
+    tgtCmd.innerHTML = '<span class="prompt">moe@dev:~/project$ </span><span class="cmd">cargo test</span>';
+    tgt.appendChild(tgtCmd);
+    await sleep(600);
+    addLine(tgt, 'output', '   Compiling wrightty v0.1.0');
+    await sleep(400);
+    addLine(tgt, 'output', '    Finished dev [optimized] in 2.1s');
+    await sleep(300);
+    addLine(tgt, 'output', '     Running target/debug/deps/tests');
+    await sleep(300);
+    const pass = addLine(tgt, '', '');
+    pass.innerHTML = '<span style="color: var(--green);">test result: ok.</span> 23 passed; 0 failed';
+    await sleep(200);
+    addLine(tgt, '', '');
+    addLine(tgt, 'output', 'moe@dev:~/project$');
+
+    // Controller gets the output back
+    flashArrow('left');
+    await sleep(400);
+    addLine(ctrl, 'output', '   Compiling wrightty v0.1.0');
+    addLine(ctrl, 'output', '    Finished dev [optimized] in 2.1s');
+    addLine(ctrl, 'output', '     Running target/debug/deps/tests');
+    const ctrlPass = addLine(ctrl, '', '');
+    ctrlPass.innerHTML = '<span style="color: var(--green);">test result: ok.</span> 23 passed; 0 failed';
+    await sleep(1000);
+
+    // Step 3: send keystrokes
+    addLine(ctrl, '', '');
+    addLine(ctrl, 'cm', '# interact with a TUI');
+    cmd = addPrompt(ctrl);
+    await typeLine('wrightty send-keys "vim" Enter', cmd);
+    await sleep(200);
+    flashArrow('right');
+    await sleep(400);
+
+    // Target shows vim opening
+    tgt.innerHTML = '';
+    addLine(tgt, '', '');
+    addLine(tgt, 'highlight', '~                                   ');
+    addLine(tgt, 'highlight', '~                                   ');
+    addLine(tgt, 'highlight', '~         VIM - Vi IMproved         ');
+    addLine(tgt, 'highlight', '~                                   ');
+    addLine(tgt, 'highlight', '~          version 9.1              ');
+    addLine(tgt, 'highlight', '~                                   ');
+    addLine(tgt, 'output', '                                      ');
+    await sleep(800);
+
+    // Send :q to exit vim
+    cmd = addPrompt(ctrl);
+    await typeLine('wrightty send-keys Escape : q Enter', cmd);
+    await sleep(200);
+    flashArrow('right');
+    await sleep(400);
+
+    // Target back to prompt
+    tgt.innerHTML = '';
+    addLine(tgt, '', '');
+    addLine(tgt, 'output', 'moe@dev:~/project$');
+
+    // Step 4: screenshot
+    addLine(ctrl, '', '');
+    cmd = addPrompt(ctrl);
+    await typeLine('wrightty screenshot -o term.svg', cmd);
+    await sleep(200);
+    flashArrow('left');
+    await sleep(300);
+    addLine(ctrl, 'output', 'Screenshot saved to term.svg');
+    await sleep(600);
+
+    // Add cursors
+    addCursor(ctrl);
+    addCursor(tgt);
     await sleep(5000);
   }
 }
