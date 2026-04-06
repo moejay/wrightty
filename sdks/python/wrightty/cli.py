@@ -13,16 +13,23 @@ from wrightty.terminal import Terminal
 @click.group()
 @click.option("--url", default=None, help="Wrightty server URL (default: auto-discover)")
 @click.option("--session", default=None, help="Session ID (default: auto-detect)")
+@click.option("--password", default=None, help="Password for server authentication")
 @click.pass_context
-def main(ctx, url, session):
-    """Wrightty — Playwright for terminals."""
+def main(ctx, url, session, password):
+    """Wrightty — terminal automation (Python client).
+
+    This is a client-only CLI. To start a server, install the Rust binary:
+      cargo install wrightty
+      wrightty term --headless
+    """
     ctx.ensure_object(dict)
     ctx.obj["url"] = url
     ctx.obj["session"] = session
+    ctx.obj["password"] = password
 
 
 def _connect(ctx) -> Terminal:
-    return Terminal.connect(ctx.obj["url"], ctx.obj["session"])
+    return Terminal.connect(ctx.obj["url"], ctx.obj["session"], password=ctx.obj["password"])
 
 
 @main.command()
@@ -154,7 +161,11 @@ def discover():
         click.echo("No wrightty servers found.")
         return
     for s in servers:
-        click.echo(f"  {s['url']}  {s['implementation']} v{s['version']}")
+        name = s.get("name", "")
+        auth = s.get("authentication", "none")
+        name_str = f" ({name})" if name else ""
+        auth_str = f" [auth: {auth}]" if auth != "none" else ""
+        click.echo(f"  {s['url']}  {s['implementation']} v{s['version']}{name_str}{auth_str}")
 
 
 @main.command()

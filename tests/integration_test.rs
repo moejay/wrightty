@@ -3,13 +3,13 @@ use std::time::Duration;
 
 use wrightty_client::WrighttyClient;
 use wrightty_protocol::methods::SessionCreateParams;
-use wrightty_protocol::types::{KeyInput, ScreenshotFormat};
+use wrightty_protocol::types::{AuthenticationMode, KeyInput, ScreenshotFormat};
 use wrightty_server::rpc::build_rpc_module;
 use wrightty_server::state::AppState;
 
 /// Start the server on a random available port and return the URL.
 async fn start_server() -> (String, jsonrpsee::server::ServerHandle) {
-    let state = AppState::new(64);
+    let state = AppState::new(64, None, None);
     let module = build_rpc_module(state).unwrap();
 
     let server = jsonrpsee::server::Server::builder()
@@ -20,6 +20,18 @@ async fn start_server() -> (String, jsonrpsee::server::ServerHandle) {
     let addr = server.local_addr().unwrap();
     let handle = server.start(module);
 
+    (format!("ws://{addr}"), handle)
+}
+
+async fn start_server_with_auth(name: Option<String>, password: Option<String>) -> (String, jsonrpsee::server::ServerHandle) {
+    let state = AppState::new(64, name, password);
+    let module = build_rpc_module(state).unwrap();
+    let server = jsonrpsee::server::Server::builder()
+        .build("127.0.0.1:0")
+        .await
+        .unwrap();
+    let addr = server.local_addr().unwrap();
+    let handle = server.start(module);
     (format!("ws://{addr}"), handle)
 }
 
@@ -214,8 +226,9 @@ async fn test_get_info() {
     let client = WrighttyClient::connect(&url).await.unwrap();
 
     let info = client.get_info().await.unwrap();
-    assert_eq!(info.version, "0.1.0");
+    assert!(!info.version.is_empty());
     assert_eq!(info.implementation, "wrightty-server");
+    assert!(matches!(info.authentication, AuthenticationMode::None));
     assert!(info.capabilities.supports_resize);
     assert!(info.capabilities.supports_session_create);
 }
@@ -615,4 +628,60 @@ async fn test_error_screenshot_unsupported_format() {
     );
 
     client.session_destroy(&session_id).await.unwrap();
+}
+
+// ─── Authentication tests ────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn test_get_info_includes_name() {
+    let (url, _handle) = start_server_with_auth(Some("test-server".to_string()), None).await;
+    let client = WrighttyClient::connect(&url).await.unwrap();
+    let info = client.get_info().await.unwrap();
+    assert_eq!(info.name, Some("test-server".to_string()));
+    assert!(matches!(info.authentication, AuthenticationMode::None));
+}
+
+#[tokio::test]
+async fn test_get_info_shows_password_auth() {
+    let (url, _handle) = start_server_with_auth(None, Some("secret".to_string())).await;
+    let client = WrighttyClient::connect(&url).await.unwrap();
+    let info = client.get_info().await.unwrap();
+    assert!(matches!(info.authentication, AuthenticationMode::Password));
+}
+
+#[tokio::test]
+async fn test_auth_blocks_unauthenticated() {
+    let (url, _handle) = start_server_with_auth(None, Some("secret".to_string())).await;
+    let client = WrighttyClient::connect(&url).await.unwrap();
+    // Session.list should fail without auth
+    let result = client.session_list().await;
+    assert!(result.is_err());
+}
+
+#[tokio::test]
+async fn test_auth_success() {
+    let (url, _handle) = start_server_with_auth(None, Some("secret".to_string())).await;
+    let client = WrighttyClient::connect(&url).await.unwrap();
+    // Authenticate
+    client.authenticate("secret").await.unwrap();
+    // Now session_list should work
+    let sessions = client.session_list().await.unwrap();
+    assert!(sessions.is_empty()); // no sessions created yet
+}
+
+#[tokio::test]
+async fn test_auth_wrong_password() {
+    let (url, _handle) = start_server_with_auth(None, Some("secret".to_string())).await;
+    let client = WrighttyClient::connect(&url).await.unwrap();
+    let result = client.authenticate("wrong").await;
+    assert!(result.is_err());
+}
+
+#[tokio::test]
+async fn test_no_auth_required_works() {
+    let (url, _handle) = start_server_with_auth(None, None).await;
+    let client = WrighttyClient::connect(&url).await.unwrap();
+    // Should work without authentication
+    let sessions = client.session_list().await.unwrap();
+    assert!(sessions.is_empty());
 }

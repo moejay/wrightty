@@ -49,7 +49,7 @@ async fn main() -> anyhow::Result<()> {
 
     let addr: SocketAddr = format!("{}:{}", cli.host, port).parse()?;
 
-    let state = AppState::new(cli.max_sessions);
+    let state = AppState::new(cli.max_sessions, None, None);
     let module = build_rpc_module(state)?;
 
     let server = Server::builder().build(addr).await?;

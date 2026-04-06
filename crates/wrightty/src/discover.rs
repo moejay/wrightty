@@ -32,11 +32,17 @@ pub async fn run(args: DiscoverArgs) -> anyhow::Result<()> {
     }
 
     for s in &found {
+        let name = s["name"].as_str().unwrap_or("");
+        let auth = s["authentication"].as_str().unwrap_or("none");
+        let auth_tag = if auth == "password" { " [password]" } else { "" };
+        let name_tag = if name.is_empty() { String::new() } else { format!(" ({name})") };
         println!(
-            "  {}  {} v{}",
+            "  {}  {} v{}{}{}",
             s["url"].as_str().unwrap_or(""),
             s["implementation"].as_str().unwrap_or(""),
             s["version"].as_str().unwrap_or(""),
+            name_tag,
+            auth_tag,
         );
     }
 

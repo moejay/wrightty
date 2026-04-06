@@ -71,7 +71,7 @@ async fn main() -> anyhow::Result<()> {
 
     let addr: SocketAddr = format!("{}:{}", cli.host, port).parse()?;
 
-    let module = build_rpc_module()?;
+    let module = build_rpc_module(None, None)?;
 
     let server = Server::builder().build(addr).await?;
 

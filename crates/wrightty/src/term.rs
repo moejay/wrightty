@@ -24,6 +24,14 @@ pub struct TermArgs {
     /// Watchdog interval in seconds for bridges (0 to disable)
     #[arg(long, default_value_t = 5)]
     watchdog_interval: u64,
+
+    /// Human-readable name for this server instance (shown in discover)
+    #[arg(long)]
+    name: Option<String>,
+
+    /// Require password authentication from clients
+    #[arg(long)]
+    password: Option<String>,
 }
 
 #[derive(Args)]
@@ -117,7 +125,11 @@ fn resolve_port(args: &TermArgs) -> anyhow::Result<u16> {
 #[cfg(feature = "headless")]
 async fn run_headless(args: TermArgs) -> anyhow::Result<()> {
     let port = resolve_port(&args)?;
-    let state = wrightty_server::state::AppState::new(args.max_sessions);
+    let state = wrightty_server::state::AppState::new(
+        args.max_sessions,
+        args.name.clone(),
+        args.password.clone(),
+    );
     let module = wrightty_server::rpc::build_rpc_module(state)?;
     server::start_server(&args.host, port, "wrightty (headless)", module).await
 }
@@ -200,7 +212,7 @@ async fn run_bridge_wezterm(args: TermArgs) -> anyhow::Result<()> {
     }
 
     let port = resolve_port(&args)?;
-    let module = wrightty_bridge_wezterm::rpc::build_rpc_module()?;
+    let module = wrightty_bridge_wezterm::rpc::build_rpc_module(args.name.clone(), args.password.clone())?;
     server::start_server_with_watchdog(
         &args.host,
         port,
@@ -227,7 +239,7 @@ async fn run_bridge_tmux(args: TermArgs) -> anyhow::Result<()> {
     }
 
     let port = resolve_port(&args)?;
-    let module = wrightty_bridge_tmux::rpc::build_rpc_module()?;
+    let module = wrightty_bridge_tmux::rpc::build_rpc_module(args.name.clone(), args.password.clone())?;
     server::start_server_with_watchdog(
         &args.host,
         port,
@@ -257,7 +269,7 @@ async fn run_bridge_kitty(args: TermArgs) -> anyhow::Result<()> {
     }
 
     let port = resolve_port(&args)?;
-    let module = wrightty_bridge_kitty::rpc::build_rpc_module()?;
+    let module = wrightty_bridge_kitty::rpc::build_rpc_module(args.name.clone(), args.password.clone())?;
     server::start_server_with_watchdog(
         &args.host,
         port,
@@ -285,7 +297,7 @@ async fn run_bridge_zellij(args: TermArgs) -> anyhow::Result<()> {
     }
 
     let port = resolve_port(&args)?;
-    let module = wrightty_bridge_zellij::rpc::build_rpc_module()?;
+    let module = wrightty_bridge_zellij::rpc::build_rpc_module(args.name.clone(), args.password.clone())?;
     server::start_server_with_watchdog(
         &args.host,
         port,
@@ -325,7 +337,7 @@ async fn run_bridge_ghostty(args: TermArgs) -> anyhow::Result<()> {
     }
 
     let port = resolve_port(&args)?;
-    let module = wrightty_bridge_ghostty::rpc::build_rpc_module()?;
+    let module = wrightty_bridge_ghostty::rpc::build_rpc_module(args.name.clone(), args.password.clone())?;
     server::start_server_with_watchdog(
         &args.host,
         port,

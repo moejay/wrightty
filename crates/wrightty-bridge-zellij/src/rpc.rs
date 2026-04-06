@@ -5,6 +5,9 @@
 //! the active ZELLIJ_SESSION_NAME). Multi-pane targeting is not available via the CLI
 //! action interface without a WASM plugin.
 
+use std::collections::HashSet;
+use std::sync::{Arc, Mutex};
+
 use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::RpcModule;
 
@@ -145,184 +148,398 @@ fn key_event_to_escape(event: &KeyEvent) -> String {
     }
 }
 
-pub fn build_rpc_module() -> anyhow::Result<RpcModule<()>> {
+pub fn build_rpc_module(name: Option<String>, password: Option<String>) -> anyhow::Result<RpcModule<()>> {
     let mut module = RpcModule::new(());
+    let authenticated: Arc<Mutex<HashSet<usize>>> = Arc::new(Mutex::new(HashSet::new()));
 
     // --- Wrightty.getInfo ---
-    module.register_async_method("Wrightty.getInfo", |_params, _state, _| async move {
-        let session_name = zellij::session_name().unwrap_or_else(|_| "unknown".to_string());
-        serde_json::to_value(GetInfoResult {
-            info: ServerInfo {
-                version: "0.1.0".to_string(),
-                implementation: format!("wrightty-bridge-zellij@{session_name}"),
-                capabilities: Capabilities {
-                    screenshot: vec![ScreenshotFormat::Text],
-                    max_sessions: 1,
-                    supports_resize: false,
-                    supports_scrollback: true,
-                    supports_mouse: false,
-                    supports_session_create: true,
-                    supports_color_palette: false,
-                    supports_raw_output: false,
-                    supports_shell_integration: false,
-                    events: vec![],
-                },
-            },
-        })
-        .map_err(|e| proto_err(-32603, e.to_string()))
-    })?;
+    {
+        let name_for_info = name.clone();
+        let password_for_info = password.clone();
+        module.register_async_method("Wrightty.getInfo", move |_params, _state, _| {
+            let name_for_info = name_for_info.clone();
+            let password_for_info = password_for_info.clone();
+            async move {
+                let session_name = zellij::session_name().unwrap_or_else(|_| "unknown".to_string());
+                serde_json::to_value(GetInfoResult {
+                    info: ServerInfo {
+                        version: "0.1.0".to_string(),
+                        implementation: format!("wrightty-bridge-zellij@{session_name}"),
+                        name: name_for_info.clone(),
+                        authentication: if password_for_info.is_some() {
+                            AuthenticationMode::Password
+                        } else {
+                            AuthenticationMode::None
+                        },
+                        capabilities: Capabilities {
+                            screenshot: vec![ScreenshotFormat::Text],
+                            max_sessions: 1,
+                            supports_resize: false,
+                            supports_scrollback: true,
+                            supports_mouse: false,
+                            supports_session_create: true,
+                            supports_color_palette: false,
+                            supports_raw_output: false,
+                            supports_shell_integration: false,
+                            events: vec![],
+                        },
+                    },
+                })
+                .map_err(|e| proto_err(-32603, e.to_string()))
+            }
+        })?;
+    }
+
+    // --- Wrightty.authenticate ---
+    {
+        let password = password.clone();
+        let authenticated = Arc::clone(&authenticated);
+        module.register_async_method("Wrightty.authenticate", move |params, _state, ext| {
+            let password = password.clone();
+            let authenticated = Arc::clone(&authenticated);
+            async move {
+                let p: AuthenticateParams = params.parse()?;
+                match &password {
+                    Some(pw) if pw == &p.password => {
+                        let conn_id = ext.get::<jsonrpsee::server::ConnectionId>().map(|c| c.0).unwrap_or(0);
+                        authenticated.lock().unwrap().insert(conn_id);
+                        serde_json::to_value(AuthenticateResult { authenticated: true })
+                            .map_err(|e| proto_err(-32603, e.to_string()))
+                    }
+                    Some(_) => Err(proto_err(error::AUTH_FAILED, "authentication failed")),
+                    None => serde_json::to_value(AuthenticateResult { authenticated: true })
+                        .map_err(|e| proto_err(-32603, e.to_string())),
+                }
+            }
+        })?;
+    }
 
     // --- Session.create ---
-    module.register_async_method("Session.create", |_params, _state, _| async move {
-        zellij::new_pane()
-            .await
-            .map_err(|e| proto_err(error::SPAWN_FAILED, e.to_string()))?;
+    {
+        let password = password.clone();
+        let authenticated = Arc::clone(&authenticated);
+        module.register_async_method("Session.create", move |_params, _state, ext| {
+            let password = password.clone();
+            let authenticated = Arc::clone(&authenticated);
+            async move {
+                if password.is_some() {
+                    let conn_id = ext.get::<jsonrpsee::server::ConnectionId>().map(|c| c.0).unwrap_or(0);
+                    if !authenticated.lock().unwrap().contains(&conn_id) {
+                        return Err(proto_err(error::NOT_AUTHENTICATED, "not authenticated"));
+                    }
+                }
 
-        let session_name = zellij::session_name()
-            .map_err(|e| proto_err(error::SPAWN_FAILED, e.to_string()))?;
+                zellij::new_pane()
+                    .await
+                    .map_err(|e| proto_err(error::SPAWN_FAILED, e.to_string()))?;
 
-        serde_json::to_value(SessionCreateResult { session_id: session_name })
-            .map_err(|e| proto_err(-32603, e.to_string()))
-    })?;
+                let session_name = zellij::session_name()
+                    .map_err(|e| proto_err(error::SPAWN_FAILED, e.to_string()))?;
+
+                serde_json::to_value(SessionCreateResult { session_id: session_name })
+                    .map_err(|e| proto_err(-32603, e.to_string()))
+            }
+        })?;
+    }
 
     // --- Session.destroy ---
-    module.register_async_method("Session.destroy", |_params, _state, _| async move {
-        zellij::close_pane()
-            .await
-            .map_err(|e| proto_err(error::SESSION_NOT_FOUND, e.to_string()))?;
+    {
+        let password = password.clone();
+        let authenticated = Arc::clone(&authenticated);
+        module.register_async_method("Session.destroy", move |_params, _state, ext| {
+            let password = password.clone();
+            let authenticated = Arc::clone(&authenticated);
+            async move {
+                if password.is_some() {
+                    let conn_id = ext.get::<jsonrpsee::server::ConnectionId>().map(|c| c.0).unwrap_or(0);
+                    if !authenticated.lock().unwrap().contains(&conn_id) {
+                        return Err(proto_err(error::NOT_AUTHENTICATED, "not authenticated"));
+                    }
+                }
 
-        serde_json::to_value(SessionDestroyResult { exit_code: None })
-            .map_err(|e| proto_err(-32603, e.to_string()))
-    })?;
+                zellij::close_pane()
+                    .await
+                    .map_err(|e| proto_err(error::SESSION_NOT_FOUND, e.to_string()))?;
+
+                serde_json::to_value(SessionDestroyResult { exit_code: None })
+                    .map_err(|e| proto_err(-32603, e.to_string()))
+            }
+        })?;
+    }
 
     // --- Session.list ---
-    module.register_async_method("Session.list", |_params, _state, _| async move {
-        let sessions = zellij::list_sessions()
-            .await
-            .map_err(|e| proto_err(-32603, e.to_string()))?;
+    {
+        let password = password.clone();
+        let authenticated = Arc::clone(&authenticated);
+        module.register_async_method("Session.list", move |_params, _state, ext| {
+            let password = password.clone();
+            let authenticated = Arc::clone(&authenticated);
+            async move {
+                if password.is_some() {
+                    let conn_id = ext.get::<jsonrpsee::server::ConnectionId>().map(|c| c.0).unwrap_or(0);
+                    if !authenticated.lock().unwrap().contains(&conn_id) {
+                        return Err(proto_err(error::NOT_AUTHENTICATED, "not authenticated"));
+                    }
+                }
 
-        let session_infos: Vec<SessionInfo> = sessions
-            .into_iter()
-            .map(|s| SessionInfo {
-                session_id: s.name.clone(),
-                title: s.name,
-                cwd: None,
-                cols: 80,
-                rows: 24,
-                pid: None,
-                running: true,
-                alternate_screen: false,
-            })
-            .collect();
+                let sessions = zellij::list_sessions()
+                    .await
+                    .map_err(|e| proto_err(-32603, e.to_string()))?;
 
-        serde_json::to_value(SessionListResult { sessions: session_infos })
-            .map_err(|e| proto_err(-32603, e.to_string()))
-    })?;
+                let session_infos: Vec<SessionInfo> = sessions
+                    .into_iter()
+                    .map(|s| SessionInfo {
+                        session_id: s.name.clone(),
+                        title: s.name,
+                        cwd: None,
+                        cols: 80,
+                        rows: 24,
+                        pid: None,
+                        running: true,
+                        alternate_screen: false,
+                    })
+                    .collect();
+
+                serde_json::to_value(SessionListResult { sessions: session_infos })
+                    .map_err(|e| proto_err(-32603, e.to_string()))
+            }
+        })?;
+    }
 
     // --- Session.getInfo ---
-    module.register_async_method("Session.getInfo", |params, _state, _| async move {
-        let p: SessionGetInfoParams = params.parse()?;
-        let session_name = zellij::session_name()
-            .map_err(|e| proto_err(error::SESSION_NOT_FOUND, e.to_string()))?;
+    {
+        let password = password.clone();
+        let authenticated = Arc::clone(&authenticated);
+        module.register_async_method("Session.getInfo", move |params, _state, ext| {
+            let password = password.clone();
+            let authenticated = Arc::clone(&authenticated);
+            async move {
+                if password.is_some() {
+                    let conn_id = ext.get::<jsonrpsee::server::ConnectionId>().map(|c| c.0).unwrap_or(0);
+                    if !authenticated.lock().unwrap().contains(&conn_id) {
+                        return Err(proto_err(error::NOT_AUTHENTICATED, "not authenticated"));
+                    }
+                }
 
-        if p.session_id != session_name {
-            return Err(proto_err(error::SESSION_NOT_FOUND,
-                format!("session {} not found (current: {})", p.session_id, session_name)));
-        }
+                let p: SessionGetInfoParams = params.parse()?;
+                let session_name = zellij::session_name()
+                    .map_err(|e| proto_err(error::SESSION_NOT_FOUND, e.to_string()))?;
 
-        let info = SessionInfo {
-            session_id: session_name.clone(),
-            title: session_name,
-            cwd: None,
-            cols: 80,
-            rows: 24,
-            pid: None,
-            running: true,
-            alternate_screen: false,
-        };
+                if p.session_id != session_name {
+                    return Err(proto_err(error::SESSION_NOT_FOUND,
+                        format!("session {} not found (current: {})", p.session_id, session_name)));
+                }
 
-        serde_json::to_value(info).map_err(|e| proto_err(-32603, e.to_string()))
-    })?;
+                let info = SessionInfo {
+                    session_id: session_name.clone(),
+                    title: session_name,
+                    cwd: None,
+                    cols: 80,
+                    rows: 24,
+                    pid: None,
+                    running: true,
+                    alternate_screen: false,
+                };
+
+                serde_json::to_value(info).map_err(|e| proto_err(-32603, e.to_string()))
+            }
+        })?;
+    }
 
     // --- Input.sendText ---
-    module.register_async_method("Input.sendText", |params, _state, _| async move {
-        let p: InputSendTextParams = params.parse()?;
+    {
+        let password = password.clone();
+        let authenticated = Arc::clone(&authenticated);
+        module.register_async_method("Input.sendText", move |params, _state, ext| {
+            let password = password.clone();
+            let authenticated = Arc::clone(&authenticated);
+            async move {
+                if password.is_some() {
+                    let conn_id = ext.get::<jsonrpsee::server::ConnectionId>().map(|c| c.0).unwrap_or(0);
+                    if !authenticated.lock().unwrap().contains(&conn_id) {
+                        return Err(proto_err(error::NOT_AUTHENTICATED, "not authenticated"));
+                    }
+                }
 
-        zellij::write_chars(&p.text)
-            .await
-            .map_err(|e| proto_err(error::SESSION_NOT_FOUND, e.to_string()))?;
+                let p: InputSendTextParams = params.parse()?;
 
-        Ok::<_, ErrorObjectOwned>(serde_json::json!({}))
-    })?;
+                zellij::write_chars(&p.text)
+                    .await
+                    .map_err(|e| proto_err(error::SESSION_NOT_FOUND, e.to_string()))?;
+
+                Ok::<_, ErrorObjectOwned>(serde_json::json!({}))
+            }
+        })?;
+    }
 
     // --- Input.sendKeys ---
-    module.register_async_method("Input.sendKeys", |params, _state, _| async move {
-        let p: InputSendKeysParams = params.parse()?;
+    {
+        let password = password.clone();
+        let authenticated = Arc::clone(&authenticated);
+        module.register_async_method("Input.sendKeys", move |params, _state, ext| {
+            let password = password.clone();
+            let authenticated = Arc::clone(&authenticated);
+            async move {
+                if password.is_some() {
+                    let conn_id = ext.get::<jsonrpsee::server::ConnectionId>().map(|c| c.0).unwrap_or(0);
+                    if !authenticated.lock().unwrap().contains(&conn_id) {
+                        return Err(proto_err(error::NOT_AUTHENTICATED, "not authenticated"));
+                    }
+                }
 
-        for key in &p.keys {
-            let escape_seq = encode_key_to_escape(key);
-            // Use write-chars for printable text; for sequences with escape codes use write (bytes)
-            if escape_seq.is_ascii() && !escape_seq.contains('\x1b') && !escape_seq.contains('\r')
-                && !escape_seq.contains('\t') && !escape_seq.contains('\x7f')
-            {
-                zellij::write_chars(&escape_seq)
-                    .await
-                    .map_err(|e| proto_err(error::SESSION_NOT_FOUND, e.to_string()))?;
-            } else {
-                let bytes = zellij::key_to_bytes(&escape_seq);
-                zellij::write_bytes(&bytes)
-                    .await
-                    .map_err(|e| proto_err(error::SESSION_NOT_FOUND, e.to_string()))?;
+                let p: InputSendKeysParams = params.parse()?;
+
+                for key in &p.keys {
+                    let escape_seq = encode_key_to_escape(key);
+                    // Use write-chars for printable text; for sequences with escape codes use write (bytes)
+                    if escape_seq.is_ascii() && !escape_seq.contains('\x1b') && !escape_seq.contains('\r')
+                        && !escape_seq.contains('\t') && !escape_seq.contains('\x7f')
+                    {
+                        zellij::write_chars(&escape_seq)
+                            .await
+                            .map_err(|e| proto_err(error::SESSION_NOT_FOUND, e.to_string()))?;
+                    } else {
+                        let bytes = zellij::key_to_bytes(&escape_seq);
+                        zellij::write_bytes(&bytes)
+                            .await
+                            .map_err(|e| proto_err(error::SESSION_NOT_FOUND, e.to_string()))?;
+                    }
+                }
+
+                Ok::<_, ErrorObjectOwned>(serde_json::json!({}))
             }
-        }
-
-        Ok::<_, ErrorObjectOwned>(serde_json::json!({}))
-    })?;
+        })?;
+    }
 
     // --- Screen.getText ---
-    module.register_async_method("Screen.getText", |params, _state, _| async move {
-        let p: ScreenGetTextParams = params.parse()?;
+    {
+        let password = password.clone();
+        let authenticated = Arc::clone(&authenticated);
+        module.register_async_method("Screen.getText", move |params, _state, ext| {
+            let password = password.clone();
+            let authenticated = Arc::clone(&authenticated);
+            async move {
+                if password.is_some() {
+                    let conn_id = ext.get::<jsonrpsee::server::ConnectionId>().map(|c| c.0).unwrap_or(0);
+                    if !authenticated.lock().unwrap().contains(&conn_id) {
+                        return Err(proto_err(error::NOT_AUTHENTICATED, "not authenticated"));
+                    }
+                }
 
-        let mut text = zellij::dump_screen()
-            .await
-            .map_err(|e| proto_err(error::SESSION_NOT_FOUND, e.to_string()))?;
+                let p: ScreenGetTextParams = params.parse()?;
 
-        if p.trim_trailing_whitespace {
-            text = text
-                .lines()
-                .map(|line| line.trim_end())
-                .collect::<Vec<_>>()
-                .join("\n");
-        }
+                let mut text = zellij::dump_screen()
+                    .await
+                    .map_err(|e| proto_err(error::SESSION_NOT_FOUND, e.to_string()))?;
 
-        serde_json::to_value(ScreenGetTextResult { text })
-            .map_err(|e| proto_err(-32603, e.to_string()))
-    })?;
+                if p.trim_trailing_whitespace {
+                    text = text
+                        .lines()
+                        .map(|line| line.trim_end())
+                        .collect::<Vec<_>>()
+                        .join("\n");
+                }
+
+                serde_json::to_value(ScreenGetTextResult { text })
+                    .map_err(|e| proto_err(-32603, e.to_string()))
+            }
+        })?;
+    }
 
     // --- Terminal.getSize (not supported) ---
-    module.register_async_method("Terminal.getSize", |_params, _state, _| async move {
-        Err::<serde_json::Value, _>(not_supported("Terminal.getSize"))
-    })?;
+    {
+        let password = password.clone();
+        let authenticated = Arc::clone(&authenticated);
+        module.register_async_method("Terminal.getSize", move |_params, _state, ext| {
+            let password = password.clone();
+            let authenticated = Arc::clone(&authenticated);
+            async move {
+                if password.is_some() {
+                    let conn_id = ext.get::<jsonrpsee::server::ConnectionId>().map(|c| c.0).unwrap_or(0);
+                    if !authenticated.lock().unwrap().contains(&conn_id) {
+                        return Err(proto_err(error::NOT_AUTHENTICATED, "not authenticated"));
+                    }
+                }
+                Err::<serde_json::Value, _>(not_supported("Terminal.getSize"))
+            }
+        })?;
+    }
 
     // --- Terminal.resize (not supported) ---
-    module.register_async_method("Terminal.resize", |_params, _state, _| async move {
-        Err::<serde_json::Value, _>(not_supported("Terminal.resize"))
-    })?;
+    {
+        let password = password.clone();
+        let authenticated = Arc::clone(&authenticated);
+        module.register_async_method("Terminal.resize", move |_params, _state, ext| {
+            let password = password.clone();
+            let authenticated = Arc::clone(&authenticated);
+            async move {
+                if password.is_some() {
+                    let conn_id = ext.get::<jsonrpsee::server::ConnectionId>().map(|c| c.0).unwrap_or(0);
+                    if !authenticated.lock().unwrap().contains(&conn_id) {
+                        return Err(proto_err(error::NOT_AUTHENTICATED, "not authenticated"));
+                    }
+                }
+                Err::<serde_json::Value, _>(not_supported("Terminal.resize"))
+            }
+        })?;
+    }
 
     // --- Screen.getContents (not supported) ---
-    module.register_async_method("Screen.getContents", |_params, _state, _| async move {
-        Err::<serde_json::Value, _>(not_supported("Screen.getContents"))
-    })?;
+    {
+        let password = password.clone();
+        let authenticated = Arc::clone(&authenticated);
+        module.register_async_method("Screen.getContents", move |_params, _state, ext| {
+            let password = password.clone();
+            let authenticated = Arc::clone(&authenticated);
+            async move {
+                if password.is_some() {
+                    let conn_id = ext.get::<jsonrpsee::server::ConnectionId>().map(|c| c.0).unwrap_or(0);
+                    if !authenticated.lock().unwrap().contains(&conn_id) {
+                        return Err(proto_err(error::NOT_AUTHENTICATED, "not authenticated"));
+                    }
+                }
+                Err::<serde_json::Value, _>(not_supported("Screen.getContents"))
+            }
+        })?;
+    }
 
     // --- Screen.screenshot (not supported) ---
-    module.register_async_method("Screen.screenshot", |_params, _state, _| async move {
-        Err::<serde_json::Value, _>(not_supported("Screen.screenshot"))
-    })?;
+    {
+        let password = password.clone();
+        let authenticated = Arc::clone(&authenticated);
+        module.register_async_method("Screen.screenshot", move |_params, _state, ext| {
+            let password = password.clone();
+            let authenticated = Arc::clone(&authenticated);
+            async move {
+                if password.is_some() {
+                    let conn_id = ext.get::<jsonrpsee::server::ConnectionId>().map(|c| c.0).unwrap_or(0);
+                    if !authenticated.lock().unwrap().contains(&conn_id) {
+                        return Err(proto_err(error::NOT_AUTHENTICATED, "not authenticated"));
+                    }
+                }
+                Err::<serde_json::Value, _>(not_supported("Screen.screenshot"))
+            }
+        })?;
+    }
 
     // --- Input.sendMouse (not supported) ---
-    module.register_async_method("Input.sendMouse", |_params, _state, _| async move {
-        Err::<serde_json::Value, _>(not_supported("Input.sendMouse"))
-    })?;
+    {
+        let password = password.clone();
+        let authenticated = Arc::clone(&authenticated);
+        module.register_async_method("Input.sendMouse", move |_params, _state, ext| {
+            let password = password.clone();
+            let authenticated = Arc::clone(&authenticated);
+            async move {
+                if password.is_some() {
+                    let conn_id = ext.get::<jsonrpsee::server::ConnectionId>().map(|c| c.0).unwrap_or(0);
+                    if !authenticated.lock().unwrap().contains(&conn_id) {
+                        return Err(proto_err(error::NOT_AUTHENTICATED, "not authenticated"));
+                    }
+                }
+                Err::<serde_json::Value, _>(not_supported("Input.sendMouse"))
+            }
+        })?;
+    }
 
     Ok(module)
 }

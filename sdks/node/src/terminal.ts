@@ -6,6 +6,7 @@ import type {
   DiscoveredServer,
   ScreenshotFormat,
   ScreenshotResult,
+  ServerInfo,
   SessionInfo,
   SpawnOptions,
   WaitForTextResult,
@@ -44,6 +45,8 @@ export class Terminal {
                 version: info.version ?? "unknown",
                 implementation: info.implementation ?? "unknown",
                 capabilities: info.capabilities ?? {},
+                name: info.name,
+                authentication: info.authentication,
               });
             } finally {
               client.close();
@@ -78,6 +81,15 @@ export class Terminal {
 
     const client = await WrighttyClient.connect(url, options.timeout ?? 5000);
 
+    const info: ServerInfo = await client.request("Wrightty.getInfo");
+    if (info.authentication === "password") {
+      if (!options.password) {
+        client.close();
+        throw new Error("Server requires password authentication but no password was provided");
+      }
+      await client.request("Wrightty.authenticate", { password: options.password });
+    }
+
     let sessionId = options.sessionId;
     if (!sessionId) {
       const result = await client.request("Session.list");
@@ -92,6 +104,15 @@ export class Terminal {
   static async spawn(options: SpawnOptions = {}): Promise<Terminal> {
     const url = options.serverUrl ?? "ws://127.0.0.1:9420";
     const client = await WrighttyClient.connect(url);
+
+    const info: ServerInfo = await client.request("Wrightty.getInfo");
+    if (info.authentication === "password") {
+      if (!options.password) {
+        client.close();
+        throw new Error("Server requires password authentication but no password was provided");
+      }
+      await client.request("Wrightty.authenticate", { password: options.password });
+    }
 
     const result = await client.request("Session.create", {
       cols: options.cols ?? 120,
@@ -216,6 +237,11 @@ export class Terminal {
   /** Get server info and capabilities. */
   async getInfo(): Promise<Record<string, any>> {
     return this.client.request("Wrightty.getInfo");
+  }
+
+  /** Authenticate with the server using a password. */
+  async authenticate(password: string): Promise<void> {
+    await this.client.request("Wrightty.authenticate", { password });
   }
 
   // --- Recording ---

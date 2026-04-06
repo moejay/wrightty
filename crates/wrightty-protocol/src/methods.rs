@@ -11,6 +11,18 @@ pub struct GetInfoResult {
     pub info: ServerInfo,
 }
 
+// --- Authentication ---
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AuthenticateParams {
+    pub password: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AuthenticateResult {
+    pub authenticated: bool,
+}
+
 // --- Session domain ---
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -36,7 +36,8 @@ class Terminal:
     def discover(host: str = "127.0.0.1") -> list[dict]:
         """Scan for running wrightty servers on ports 9420-9520.
 
-        Returns a list of dicts with keys: url, version, implementation, capabilities.
+        Returns a list of dicts with keys: url, version, implementation,
+        capabilities, name, authentication.
 
         Example:
             servers = Terminal.discover()
@@ -58,6 +59,8 @@ class Terminal:
                     "version": info.get("version", "unknown"),
                     "implementation": info.get("implementation", "unknown"),
                     "capabilities": info.get("capabilities", {}),
+                    "name": info.get("name", ""),
+                    "authentication": info.get("authentication", "none"),
                 })
             except (ConnectionError, ConnectionRefusedError, OSError, WrighttyError):
                 continue
@@ -68,11 +71,14 @@ class Terminal:
         cls,
         url: str | None = None,
         session_id: str | None = None,
+        password: str | None = None,
     ) -> Terminal:
         """Connect to a wrightty server.
 
         If no URL is given, auto-discovers the first available server
         by scanning ports 9420-9440.
+
+        If the server requires authentication, the password must be provided.
         """
         if url is None:
             servers = cls.discover()
@@ -86,6 +92,18 @@ class Terminal:
             url = servers[0]["url"]
 
         client = WrighttyClient.connect(url)
+
+        # Check if the server requires authentication.
+        info = client.request("Wrightty.getInfo")
+        auth_mode = info.get("authentication", "none")
+        if auth_mode == "password":
+            if not password:
+                client.close()
+                raise ConnectionError(
+                    "Server requires password authentication but no password was provided. "
+                    "Pass password= to Terminal.connect() or use --password on the CLI."
+                )
+            client.request("Wrightty.authenticate", {"password": password})
 
         if session_id is None:
             result = client.request("Session.list")
@@ -105,9 +123,22 @@ class Terminal:
         rows: int = 40,
         cwd: str | None = None,
         server_url: str = "ws://127.0.0.1:9420",
+        password: str | None = None,
     ) -> Terminal:
         """Connect to a wrightty-server daemon and create a new session."""
         client = WrighttyClient.connect(server_url)
+
+        # Check if the server requires authentication.
+        info = client.request("Wrightty.getInfo")
+        auth_mode = info.get("authentication", "none")
+        if auth_mode == "password":
+            if not password:
+                client.close()
+                raise ConnectionError(
+                    "Server requires password authentication but no password was provided. "
+                    "Pass password= to Terminal.spawn() or use --password on the CLI."
+                )
+            client.request("Wrightty.authenticate", {"password": password})
 
         params: dict[str, Any] = {"cols": cols, "rows": rows}
         if shell:
@@ -230,6 +261,13 @@ class Terminal:
     def get_info(self) -> dict:
         """Get server info and capabilities."""
         return self._client.request("Wrightty.getInfo")
+
+    def authenticate(self, password: str) -> dict:
+        """Authenticate with the server using a password.
+
+        Raises WrighttyError if the password is incorrect.
+        """
+        return self._client.request("Wrightty.authenticate", {"password": password})
 
     # --- Recording ---
 

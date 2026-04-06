@@ -34,6 +34,17 @@ impl WrighttyClient {
         Ok(Self { client })
     }
 
+    pub async fn authenticate(&self, password: &str) -> Result<(), Box<dyn std::error::Error>> {
+        let params = AuthenticateParams {
+            password: password.to_string(),
+        };
+        let _: AuthenticateResult = self
+            .client
+            .request("Wrightty.authenticate", to_params(&params)?)
+            .await?;
+        Ok(())
+    }
+
     pub async fn get_info(&self) -> Result<ServerInfo, Box<dyn std::error::Error>> {
         let result: GetInfoResult = self
             .client

@@ -169,9 +169,19 @@ pub struct Capabilities {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub enum AuthenticationMode {
+    None,
+    Password,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ServerInfo {
     pub version: String,
     pub implementation: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    pub authentication: AuthenticationMode,
     pub capabilities: Capabilities,
 }
 

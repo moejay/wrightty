@@ -6,3 +6,5 @@ pub const SPAWN_FAILED: i32 = 1005;
 pub const NOT_SUPPORTED: i32 = 1006;
 pub const MAX_SESSIONS_REACHED: i32 = 1007;
 pub const SUBSCRIPTION_NOT_FOUND: i32 = 1008;
+pub const AUTH_FAILED: i32 = 1009;
+pub const NOT_AUTHENTICATED: i32 = 1010;

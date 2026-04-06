@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
@@ -27,13 +27,22 @@ pub struct AppState {
     pub session_manager: Arc<Mutex<SessionManager>>,
     /// Active video recordings keyed by recording ID.
     pub video_recordings: Arc<Mutex<HashMap<String, VideoRecording>>>,
+    /// Optional human-readable server name.
+    pub name: Option<String>,
+    /// Optional password for client authentication.
+    pub password: Option<String>,
+    /// Set of connection IDs that have successfully authenticated.
+    pub authenticated_connections: Arc<Mutex<HashSet<usize>>>,
 }
 
 impl AppState {
-    pub fn new(max_sessions: usize) -> Self {
+    pub fn new(max_sessions: usize, name: Option<String>, password: Option<String>) -> Self {
         Self {
             session_manager: Arc::new(Mutex::new(SessionManager::new(max_sessions))),
             video_recordings: Arc::new(Mutex::new(HashMap::new())),
+            name,
+            password,
+            authenticated_connections: Arc::new(Mutex::new(HashSet::new())),
         }
     }
 }

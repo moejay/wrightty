@@ -2,6 +2,7 @@ use std::time::{Duration, Instant};
 use std::sync::Arc;
 
 use jsonrpsee::types::ErrorObjectOwned;
+use jsonrpsee::Extensions;
 use jsonrpsee::RpcModule;
 
 use wrightty_core::input;
@@ -15,15 +16,41 @@ fn proto_err(code: i32, msg: impl Into<String>) -> ErrorObjectOwned {
     ErrorObjectOwned::owned(code, msg.into(), None::<()>)
 }
 
+/// Check if the connection is authenticated. Returns Ok if no password is set
+/// or if this connection has already authenticated.
+fn check_auth(state: &AppState, ext: &Extensions) -> Result<(), ErrorObjectOwned> {
+    if state.password.is_none() {
+        return Ok(());
+    }
+    let conn_id = ext
+        .get::<jsonrpsee::server::ConnectionId>()
+        .map(|c| c.0)
+        .unwrap_or(0);
+    if state.authenticated_connections.lock().unwrap().contains(&conn_id) {
+        Ok(())
+    } else {
+        Err(proto_err(
+            error::NOT_AUTHENTICATED,
+            "not authenticated — call Wrightty.authenticate first",
+        ))
+    }
+}
+
 pub fn build_rpc_module(state: AppState) -> anyhow::Result<RpcModule<AppState>> {
     let mut module = RpcModule::new(state);
 
-    // --- Wrightty.getInfo ---
-    module.register_method("Wrightty.getInfo", |_params, _state, _| {
+    // --- Wrightty.getInfo (always allowed, even before auth) ---
+    module.register_method("Wrightty.getInfo", |_params, state, _| {
         serde_json::to_value(GetInfoResult {
             info: ServerInfo {
-                version: "0.1.0".to_string(),
+                version: env!("CARGO_PKG_VERSION").to_string(),
                 implementation: "wrightty-server".to_string(),
+                name: state.name.clone(),
+                authentication: if state.password.is_some() {
+                    AuthenticationMode::Password
+                } else {
+                    AuthenticationMode::None
+                },
                 capabilities: Capabilities {
                     screenshot: vec![ScreenshotFormat::Text, ScreenshotFormat::Json],
                     max_sessions: 64,
@@ -46,8 +73,31 @@ pub fn build_rpc_module(state: AppState) -> anyhow::Result<RpcModule<AppState>> 
         .map_err(|e| proto_err(-32603, e.to_string()))
     })?;
 
+    // --- Wrightty.authenticate ---
+    module.register_method("Wrightty.authenticate", |params, state, ext| {
+        let p: AuthenticateParams = params.parse()?;
+        match &state.password {
+            Some(pw) if pw == &p.password => {
+                let conn_id = ext
+                    .get::<jsonrpsee::server::ConnectionId>()
+                    .map(|c| c.0)
+                    .unwrap_or(0);
+                state.authenticated_connections.lock().unwrap().insert(conn_id);
+                serde_json::to_value(AuthenticateResult { authenticated: true })
+                    .map_err(|e| proto_err(-32603, e.to_string()))
+            }
+            Some(_) => Err(proto_err(error::AUTH_FAILED, "authentication failed")),
+            None => {
+                // No password set — always authenticated
+                serde_json::to_value(AuthenticateResult { authenticated: true })
+                    .map_err(|e| proto_err(-32603, e.to_string()))
+            }
+        }
+    })?;
+
     // --- Session.create ---
-    module.register_method("Session.create", |params, state, _| {
+    module.register_method("Session.create", |params, state, ext| {
+        check_auth(state, ext)?;
         let p: SessionCreateParams = params.parse()?;
         let mut mgr = state.session_manager.lock().unwrap();
         let id = mgr
@@ -58,7 +108,8 @@ pub fn build_rpc_module(state: AppState) -> anyhow::Result<RpcModule<AppState>> 
     })?;
 
     // --- Session.destroy ---
-    module.register_method("Session.destroy", |params, state, _| {
+    module.register_method("Session.destroy", |params, state, ext| {
+        check_auth(state, ext)?;
         let p: SessionDestroyParams = params.parse()?;
         let mut mgr = state.session_manager.lock().unwrap();
         mgr.destroy(&p.session_id)
@@ -68,7 +119,8 @@ pub fn build_rpc_module(state: AppState) -> anyhow::Result<RpcModule<AppState>> 
     })?;
 
     // --- Session.list ---
-    module.register_method("Session.list", |_params, state, _| {
+    module.register_method("Session.list", |_params, state, ext| {
+        check_auth(state, ext)?;
         let mgr = state.session_manager.lock().unwrap();
         let sessions = mgr.list();
         serde_json::to_value(SessionListResult { sessions })
@@ -76,7 +128,8 @@ pub fn build_rpc_module(state: AppState) -> anyhow::Result<RpcModule<AppState>> 
     })?;
 
     // --- Session.getInfo ---
-    module.register_method("Session.getInfo", |params, state, _| {
+    module.register_method("Session.getInfo", |params, state, ext| {
+        check_auth(state, ext)?;
         let p: SessionGetInfoParams = params.parse()?;
         let mgr = state.session_manager.lock().unwrap();
         let session = mgr
@@ -97,7 +150,8 @@ pub fn build_rpc_module(state: AppState) -> anyhow::Result<RpcModule<AppState>> 
     })?;
 
     // --- Input.sendKeys ---
-    module.register_method("Input.sendKeys", |params, state, _| {
+    module.register_method("Input.sendKeys", |params, state, ext| {
+        check_auth(state, ext)?;
         let p: InputSendKeysParams = params.parse()?;
         let mut mgr = state.session_manager.lock().unwrap();
         let session = mgr
@@ -113,7 +167,8 @@ pub fn build_rpc_module(state: AppState) -> anyhow::Result<RpcModule<AppState>> 
     })?;
 
     // --- Input.sendText ---
-    module.register_method("Input.sendText", |params, state, _| {
+    module.register_method("Input.sendText", |params, state, ext| {
+        check_auth(state, ext)?;
         let p: InputSendTextParams = params.parse()?;
         let mut mgr = state.session_manager.lock().unwrap();
         let session = mgr
@@ -128,7 +183,8 @@ pub fn build_rpc_module(state: AppState) -> anyhow::Result<RpcModule<AppState>> 
     })?;
 
     // --- Screen.getContents ---
-    module.register_method("Screen.getContents", |params, state, _| {
+    module.register_method("Screen.getContents", |params, state, ext| {
+        check_auth(state, ext)?;
         let p: ScreenGetContentsParams = params.parse()?;
         let mgr = state.session_manager.lock().unwrap();
         let session = mgr
@@ -147,7 +203,8 @@ pub fn build_rpc_module(state: AppState) -> anyhow::Result<RpcModule<AppState>> 
     })?;
 
     // --- Screen.getText ---
-    module.register_method("Screen.getText", |params, state, _| {
+    module.register_method("Screen.getText", |params, state, ext| {
+        check_auth(state, ext)?;
         let p: ScreenGetTextParams = params.parse()?;
         let mgr = state.session_manager.lock().unwrap();
         let session = mgr
@@ -160,7 +217,8 @@ pub fn build_rpc_module(state: AppState) -> anyhow::Result<RpcModule<AppState>> 
     })?;
 
     // --- Screen.getScrollback ---
-    module.register_method("Screen.getScrollback", |params, state, _| {
+    module.register_method("Screen.getScrollback", |params, state, ext| {
+        check_auth(state, ext)?;
         let p: ScreenGetScrollbackParams = params.parse()?;
         let mgr = state.session_manager.lock().unwrap();
         let session = mgr
@@ -176,7 +234,8 @@ pub fn build_rpc_module(state: AppState) -> anyhow::Result<RpcModule<AppState>> 
     })?;
 
     // --- Screen.screenshot ---
-    module.register_method("Screen.screenshot", |params, state, _| {
+    module.register_method("Screen.screenshot", |params, state, ext| {
+        check_auth(state, ext)?;
         let p: ScreenScreenshotParams = params.parse()?;
         let mgr = state.session_manager.lock().unwrap();
         let session = mgr
@@ -289,7 +348,8 @@ pub fn build_rpc_module(state: AppState) -> anyhow::Result<RpcModule<AppState>> 
     })?;
 
     // --- Terminal.resize ---
-    module.register_method("Terminal.resize", |params, state, _| {
+    module.register_method("Terminal.resize", |params, state, ext| {
+        check_auth(state, ext)?;
         let p: TerminalResizeParams = params.parse()?;
         let mut mgr = state.session_manager.lock().unwrap();
         let session = mgr
@@ -304,7 +364,8 @@ pub fn build_rpc_module(state: AppState) -> anyhow::Result<RpcModule<AppState>> 
     })?;
 
     // --- Terminal.getSize ---
-    module.register_method("Terminal.getSize", |params, state, _| {
+    module.register_method("Terminal.getSize", |params, state, ext| {
+        check_auth(state, ext)?;
         let p: TerminalGetSizeParams = params.parse()?;
         let mgr = state.session_manager.lock().unwrap();
         let session = mgr
@@ -317,7 +378,8 @@ pub fn build_rpc_module(state: AppState) -> anyhow::Result<RpcModule<AppState>> 
     })?;
 
     // --- Recording.captureScreen ---
-    module.register_method("Recording.captureScreen", |params, state, _| {
+    module.register_method("Recording.captureScreen", |params, state, ext| {
+        check_auth(state, ext)?;
         #[derive(serde::Deserialize)]
         #[serde(rename_all = "camelCase")]
         struct P { session_id: String }
@@ -344,7 +406,6 @@ pub fn build_rpc_module(state: AppState) -> anyhow::Result<RpcModule<AppState>> 
 
         let p: P = params.parse()?;
 
-        // Validate session exists and get dimensions
         let (cols, rows) = {
             let mgr = state.session_manager.lock().unwrap();
             let s = mgr.get(&p.session_id)
@@ -368,7 +429,6 @@ pub fn build_rpc_module(state: AppState) -> anyhow::Result<RpcModule<AppState>> 
             });
         }
 
-        // Spawn background task to capture frames
         let recs_arc = Arc::clone(&state.video_recordings);
         let rec_id_bg = rec_id.clone();
         let session_id_bg = p.session_id.clone();
@@ -404,7 +464,8 @@ pub fn build_rpc_module(state: AppState) -> anyhow::Result<RpcModule<AppState>> 
     })?;
 
     // --- Recording.stopVideo ---
-    module.register_method("Recording.stopVideo", |params, state, _| {
+    module.register_method("Recording.stopVideo", |params, state, ext| {
+        check_auth(state, ext)?;
         #[derive(serde::Deserialize)]
         #[serde(rename_all = "camelCase")]
         struct P { recording_id: String }
@@ -416,7 +477,6 @@ pub fn build_rpc_module(state: AppState) -> anyhow::Result<RpcModule<AppState>> 
                 .ok_or_else(|| proto_err(-32001, "recording not found"))?
         };
 
-        // Serialise as asciicast v2
         let start_ts = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
@@ -429,7 +489,6 @@ pub fn build_rpc_module(state: AppState) -> anyhow::Result<RpcModule<AppState>> 
         ));
 
         for frame in &rec.frames {
-            // Each frame: clear screen then write content
             let clear = "\\u001b[2J\\u001b[H";
             let data = frame.text.replace('\\', "\\\\")
                 .replace('"', "\\\"")
@@ -440,7 +499,6 @@ pub fn build_rpc_module(state: AppState) -> anyhow::Result<RpcModule<AppState>> 
                 frame.elapsed_secs, clear, data
             ));
         }
-        // Remove the trailing escaped newline and fix
         let cast = cast.replace("\\n", "\n");
 
         serde_json::to_value(serde_json::json!({

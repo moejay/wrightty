@@ -4,6 +4,8 @@ export interface ServerInfo {
   version: string;
   implementation: string;
   capabilities: Capabilities;
+  name?: string;
+  authentication: "none" | "password";
 }
 
 export interface Capabilities {
@@ -85,6 +87,8 @@ export interface DiscoveredServer {
   version: string;
   implementation: string;
   capabilities: Capabilities;
+  name?: string;
+  authentication?: string;
 }
 
 export interface ConnectOptions {
@@ -94,6 +98,8 @@ export interface ConnectOptions {
   sessionId?: string;
   /** Connection timeout in ms (default: 5000) */
   timeout?: number;
+  /** Password for server authentication */
+  password?: string;
 }
 
 export interface SpawnOptions {
@@ -102,4 +108,6 @@ export interface SpawnOptions {
   rows?: number;
   cwd?: string;
   serverUrl?: string;
+  /** Password for server authentication */
+  password?: string;
 }

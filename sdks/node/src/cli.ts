@@ -9,6 +9,8 @@ const command = args[0];
 function usage() {
   console.log(`wrightty-js — Playwright for terminals (Node.js)
 
+Note: This is a client CLI. To start a server: cargo install wrightty
+
 Usage:
   wrightty-js run <command> [--timeout <s>]   Run a command and print output
   wrightty-js read                            Read the terminal screen
@@ -23,6 +25,7 @@ Usage:
 Options:
   --url <url>         Server URL (default: auto-discover)
   --session <id>      Session ID (default: first available)
+  --password <pass>   Password for server authentication
   --help              Show this help`);
 }
 
@@ -38,7 +41,8 @@ function hasFlag(name: string): boolean {
 async function getTerminal(): Promise<Terminal> {
   const url = getOpt("--url");
   const sessionId = getOpt("--session");
-  return Terminal.connect({ url, sessionId });
+  const password = getOpt("--password");
+  return Terminal.connect({ url, sessionId, password });
 }
 
 async function main() {
@@ -55,7 +59,9 @@ async function main() {
           console.log("No wrightty servers found.");
         } else {
           for (const s of servers) {
-            console.log(`  ${s.url}  ${s.implementation} v${s.version}`);
+            const name = s.name ? ` [${s.name}]` : "";
+            const auth = s.authentication ? ` (auth: ${s.authentication})` : "";
+            console.log(`  ${s.url}  ${s.implementation} v${s.version}${name}${auth}`);
           }
         }
         break;

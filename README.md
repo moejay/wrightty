@@ -66,6 +66,9 @@ wrightty term --bridge-zellij     # Zellij
 
 # Or use the Alacritty fork with native support:
 wrightty term --alacritty
+
+# With a name and password:
+wrightty term --headless --name my-server --password secret123
 ```
 
 ### 2. Control it
@@ -380,6 +383,16 @@ wrightty/
 If your terminal has any way to read screen content and send input (CLI, socket, D-Bus, API), a wrightty bridge can be built. See `crates/wrightty-bridge-wezterm/` for a reference implementation.
 
 For terminals with no IPC, pair them with **tmux** or **zellij** and use that bridge.
+
+## Star History
+
+<a href="https://www.star-history.com/?repos=moejay%2Fwrightty&type=date&legend=top-left">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=moejay/wrightty&type=date&theme=dark&legend=top-left" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=moejay/wrightty&type=date&legend=top-left" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=moejay/wrightty&type=date&legend=top-left" />
+ </picture>
+</a>
 
 ## License
 

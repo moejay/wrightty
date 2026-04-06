@@ -39,7 +39,21 @@ def get_client() -> WrighttyClient:
     global _client
     if _client is None:
         url = os.environ.get("WRIGHTTY_SOCKET", "ws://127.0.0.1:9420")
+        password = os.environ.get("WRIGHTTY_PASSWORD")
         _client = WrighttyClient.connect(url)
+
+        # Check if the server requires authentication.
+        info = _client.request("Wrightty.getInfo")
+        auth_mode = info.get("authentication", "none")
+        if auth_mode == "password":
+            if not password:
+                _client.close()
+                _client = None
+                raise ConnectionError(
+                    "Server requires password authentication. "
+                    "Set the WRIGHTTY_PASSWORD environment variable."
+                )
+            _client.request("Wrightty.authenticate", {"password": password})
     return _client
 
 
