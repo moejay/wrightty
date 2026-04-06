@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>wrightty - Playwright for terminals</title>
+  <meta name="description" content="Control any terminal emulator programmatically. Send keystrokes, read the screen, take screenshots, and run commands over WebSocket JSON-RPC. Built for AI agents.">
+  <meta property="og:title" content="wrightty - Playwright for terminals">
+  <meta property="og:description" content="A CDP-like protocol for terminal automation. Built for AI coding agents.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://moejay.github.io/wrightty">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0a0a0f;
+      --bg-card: #12121a;
+      --bg-code: #0d0d14;
+      --border: #1e1e2e;
+      --text: #e4e4ef;
+      --text-dim: #8888a0;
+      --accent: #7c6ff7;
+      --accent-bright: #9d93ff;
+      --green: #4ade80;
+      --cyan: #22d3ee;
+      --orange: #fb923c;
+      --pink: #f472b6;
+      --yellow: #facc15;
+      --red: #f87171;
+      --radius: 12px;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Inter', -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+
+    /* --- Nav --- */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      padding: 1rem 2rem;
+      background: rgba(10, 10, 15, 0.85);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .nav-brand {
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 700; font-size: 1.25rem;
+      color: var(--accent-bright);
+      text-decoration: none;
+    }
+    .nav-links { display: flex; gap: 1.5rem; align-items: center; }
+    .nav-links a {
+      color: var(--text-dim); text-decoration: none; font-size: 0.9rem;
+      font-weight: 500; transition: color 0.2s;
+    }
+    .nav-links a:hover { color: var(--text); }
+    .nav-github {
+      display: inline-flex; align-items: center; gap: 0.4rem;
+      padding: 0.4rem 0.8rem; border-radius: 8px;
+      background: var(--bg-card); border: 1px solid var(--border);
+      color: var(--text) !important; font-size: 0.85rem;
+    }
+    .nav-github:hover { border-color: var(--accent); }
+
+    /* --- Hero --- */
+    .hero {
+      padding: 10rem 2rem 5rem;
+      text-align: center;
+      position: relative;
+    }
+    .hero::before {
+      content: '';
+      position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+      width: 800px; height: 600px;
+      background: radial-gradient(ellipse, rgba(124, 111, 247, 0.08) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .hero-badge {
+      display: inline-flex; align-items: center; gap: 0.5rem;
+      padding: 0.35rem 1rem; border-radius: 100px;
+      background: rgba(124, 111, 247, 0.1); border: 1px solid rgba(124, 111, 247, 0.25);
+      font-size: 0.8rem; color: var(--accent-bright); margin-bottom: 1.5rem;
+      font-weight: 500;
+    }
+    .hero h1 {
+      font-size: clamp(2.5rem, 6vw, 4.5rem);
+      font-weight: 800; line-height: 1.1;
+      letter-spacing: -0.03em;
+      margin-bottom: 1.25rem;
+    }
+    .hero h1 span { color: var(--accent-bright); }
+    .hero p {
+      font-size: clamp(1rem, 2vw, 1.25rem);
+      color: var(--text-dim); max-width: 640px; margin: 0 auto 2.5rem;
+      line-height: 1.7;
+    }
+    .hero-actions { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }
+    .btn {
+      display: inline-flex; align-items: center; gap: 0.5rem;
+      padding: 0.75rem 1.5rem; border-radius: 10px;
+      font-size: 0.95rem; font-weight: 600; text-decoration: none;
+      transition: all 0.2s; cursor: pointer; border: none;
+    }
+    .btn-primary {
+      background: var(--accent); color: white;
+      box-shadow: 0 0 20px rgba(124, 111, 247, 0.3);
+    }
+    .btn-primary:hover {
+      background: var(--accent-bright);
+      box-shadow: 0 0 30px rgba(124, 111, 247, 0.4);
+      transform: translateY(-1px);
+    }
+    .btn-secondary {
+      background: var(--bg-card); color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .btn-secondary:hover { border-color: var(--accent); transform: translateY(-1px); }
+
+    /* --- Terminal demo --- */
+    .terminal-demo {
+      max-width: 720px; margin: 3rem auto 0;
+      background: var(--bg-code); border: 1px solid var(--border);
+      border-radius: var(--radius); overflow: hidden;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+    }
+    .terminal-bar {
+      display: flex; align-items: center; gap: 0.5rem;
+      padding: 0.75rem 1rem;
+      background: rgba(30, 30, 46, 0.5);
+      border-bottom: 1px solid var(--border);
+    }
+    .terminal-dot {
+      width: 12px; height: 12px; border-radius: 50%;
+    }
+    .terminal-dot.r { background: #ff5f57; }
+    .terminal-dot.y { background: #febc2e; }
+    .terminal-dot.g { background: #28c840; }
+    .terminal-title {
+      flex: 1; text-align: center;
+      font-family: 'JetBrains Mono', monospace; font-size: 0.75rem;
+      color: var(--text-dim);
+    }
+    .terminal-body {
+      padding: 1.25rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.85rem; line-height: 1.7;
+      min-height: 240px;
+    }
+    .terminal-body .prompt { color: var(--green); }
+    .terminal-body .cmd { color: var(--text); }
+    .terminal-body .output { color: var(--text-dim); }
+    .terminal-body .highlight { color: var(--cyan); }
+    .terminal-body .cursor {
+      display: inline-block; width: 8px; height: 1.1em;
+      background: var(--accent-bright); vertical-align: text-bottom;
+      animation: blink 1s step-end infinite;
+    }
+    @keyframes blink { 50% { opacity: 0; } }
+
+    /* --- Section --- */
+    section { padding: 5rem 2rem; }
+    .container { max-width: 1100px; margin: 0 auto; }
+    .section-label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.8rem; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 0.1em; color: var(--accent-bright);
+      margin-bottom: 0.75rem;
+    }
+    .section-title {
+      font-size: clamp(1.75rem, 4vw, 2.5rem);
+      font-weight: 700; letter-spacing: -0.02em;
+      margin-bottom: 1rem;
+    }
+    .section-desc {
+      color: var(--text-dim); font-size: 1.1rem;
+      max-width: 600px; margin-bottom: 3rem;
+    }
+
+    /* --- Install --- */
+    .install-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1rem;
+    }
+    .install-card {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 1.5rem;
+      transition: border-color 0.2s;
+    }
+    .install-card:hover { border-color: var(--accent); }
+    .install-card h3 {
+      font-size: 0.85rem; color: var(--text-dim);
+      margin-bottom: 0.75rem; font-weight: 500;
+    }
+    .install-card code {
+      display: block;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.85rem; color: var(--green);
+      background: var(--bg-code); padding: 0.75rem 1rem;
+      border-radius: 8px; word-break: break-all;
+    }
+
+    /* --- Features --- */
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 1.25rem;
+    }
+    .feature-card {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 1.75rem;
+      transition: all 0.2s;
+    }
+    .feature-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+    .feature-icon {
+      width: 40px; height: 40px; border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.25rem; margin-bottom: 1rem;
+    }
+    .feature-card h3 { font-size: 1.1rem; font-weight: 600; margin-bottom: 0.5rem; }
+    .feature-card p { color: var(--text-dim); font-size: 0.9rem; line-height: 1.6; }
+
+    /* --- Code blocks --- */
+    .code-tabs {
+      display: flex; gap: 0; border-bottom: 1px solid var(--border);
+      margin-bottom: 0;
+    }
+    .code-tab {
+      padding: 0.6rem 1.25rem; font-size: 0.8rem; font-weight: 600;
+      color: var(--text-dim); background: none; border: none; cursor: pointer;
+      border-bottom: 2px solid transparent; transition: all 0.2s;
+      font-family: 'Inter', sans-serif;
+    }
+    .code-tab.active { color: var(--accent-bright); border-bottom-color: var(--accent); }
+    .code-tab:hover:not(.active) { color: var(--text); }
+    .code-block-wrapper {
+      background: var(--bg-code); border: 1px solid var(--border);
+      border-radius: var(--radius); overflow: hidden;
+    }
+    .code-content { display: none; }
+    .code-content.active { display: block; }
+    pre {
+      padding: 1.5rem; overflow-x: auto;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.85rem; line-height: 1.7;
+    }
+    .kw { color: var(--pink); }
+    .fn { color: var(--cyan); }
+    .str { color: var(--green); }
+    .cm { color: var(--text-dim); }
+    .num { color: var(--orange); }
+    .op { color: var(--text-dim); }
+
+    /* --- Modes --- */
+    .modes-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 1.25rem;
+    }
+    .mode-card {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 1.75rem;
+    }
+    .mode-card h3 {
+      font-size: 1rem; font-weight: 600; margin-bottom: 0.4rem;
+      display: flex; align-items: center; gap: 0.5rem;
+    }
+    .mode-card .tag {
+      font-size: 0.7rem; padding: 0.15rem 0.5rem; border-radius: 100px;
+      font-weight: 500; font-family: 'JetBrains Mono', monospace;
+    }
+    .tag-headless { background: rgba(74, 222, 128, 0.1); color: var(--green); }
+    .tag-native { background: rgba(124, 111, 247, 0.1); color: var(--accent-bright); }
+    .tag-bridge { background: rgba(34, 211, 238, 0.1); color: var(--cyan); }
+    .mode-card p { color: var(--text-dim); font-size: 0.85rem; margin-bottom: 0.75rem; }
+    .mode-cmd {
+      font-family: 'JetBrains Mono', monospace; font-size: 0.8rem;
+      color: var(--green); background: var(--bg-code);
+      padding: 0.5rem 0.75rem; border-radius: 6px;
+    }
+
+    /* --- Compat table --- */
+    .compat-table {
+      width: 100%; border-collapse: collapse;
+      font-size: 0.85rem;
+    }
+    .compat-table th {
+      text-align: left; padding: 0.75rem 1rem;
+      border-bottom: 2px solid var(--border);
+      font-weight: 600; color: var(--text-dim);
+      font-size: 0.8rem; text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .compat-table td {
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .compat-table tr:hover { background: rgba(124, 111, 247, 0.03); }
+    .check { color: var(--green); }
+    .dash { color: var(--text-dim); }
+
+    /* --- Footer --- */
+    footer {
+      padding: 3rem 2rem;
+      border-top: 1px solid var(--border);
+      text-align: center;
+    }
+    footer p { color: var(--text-dim); font-size: 0.85rem; }
+    footer a { color: var(--accent-bright); text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+
+    /* --- Responsive --- */
+    @media (max-width: 640px) {
+      nav { padding: 0.75rem 1rem; }
+      .nav-links { gap: 0.75rem; }
+      .hero { padding: 7rem 1.25rem 3rem; }
+      section { padding: 3rem 1.25rem; }
+      .terminal-body { font-size: 0.75rem; padding: 1rem; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Nav -->
+<nav>
+  <a href="#" class="nav-brand">wrightty</a>
+  <div class="nav-links">
+    <a href="#install">Install</a>
+    <a href="#features">Features</a>
+    <a href="#sdks">SDKs</a>
+    <a href="#modes">Terminals</a>
+    <a href="https://github.com/moejay/wrightty" class="nav-github">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path></svg>
+      GitHub
+    </a>
+  </div>
+</nav>
+
+<!-- Hero -->
+<div class="hero">
+  <div class="hero-badge">v0.1.0 &mdash; now available on crates.io, PyPI &amp; npm</div>
+  <h1>Playwright for <span>terminals</span></h1>
+  <p>Control any terminal emulator programmatically. Send keystrokes, read the screen, take screenshots, and run commands &mdash; all over WebSocket JSON-RPC. Built for AI coding agents.</p>
+  <div class="hero-actions">
+    <a href="#install" class="btn btn-primary">Get started</a>
+    <a href="https://github.com/moejay/wrightty" class="btn btn-secondary">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path></svg>
+      View on GitHub
+    </a>
+  </div>
+
+  <div class="terminal-demo">
+    <div class="terminal-bar">
+      <div class="terminal-dot r"></div>
+      <div class="terminal-dot y"></div>
+      <div class="terminal-dot g"></div>
+      <div class="terminal-title">wrightty</div>
+      <div style="width: 36px;"></div>
+    </div>
+    <div class="terminal-body" id="term-demo"></div>
+  </div>
+</div>
+
+<!-- Install -->
+<section id="install">
+  <div class="container">
+    <div class="section-label">Install</div>
+    <div class="section-title">Up and running in seconds</div>
+    <div class="section-desc">One command. No GUI needed. Works with any terminal you already use.</div>
+    <div class="install-grid">
+      <div class="install-card">
+        <h3>One-liner (Linux / macOS)</h3>
+        <code>curl -fsSL https://wrightty.dev/install.sh | sh</code>
+      </div>
+      <div class="install-card">
+        <h3>Cargo (from crates.io)</h3>
+        <code>cargo install wrightty</code>
+      </div>
+      <div class="install-card">
+        <h3>Python SDK</h3>
+        <code>pip install wrightty</code>
+      </div>
+      <div class="install-card">
+        <h3>Node.js SDK</h3>
+        <code>npm install @moejay/wrightty</code>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Features -->
+<section id="features">
+  <div class="container">
+    <div class="section-label">Features</div>
+    <div class="section-title">Everything you need for terminal automation</div>
+    <div class="features-grid">
+      <div class="feature-card">
+        <div class="feature-icon" style="background: rgba(74, 222, 128, 0.1); color: var(--green);">&#9654;</div>
+        <h3>Run commands</h3>
+        <p>Execute shell commands and capture output. Wait for prompts, handle timeouts, parse results.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon" style="background: rgba(34, 211, 238, 0.1); color: var(--cyan);">&#9783;</div>
+        <h3>Read the screen</h3>
+        <p>Read terminal text including TUI apps, colors, and cursor position. Full cell-level access.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon" style="background: rgba(244, 114, 182, 0.1); color: var(--pink);">&#9000;</div>
+        <h3>Send keystrokes</h3>
+        <p>Type text, send Ctrl+C, navigate vim, interact with any TUI. Supports all modifiers and special keys.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon" style="background: rgba(251, 146, 60, 0.1); color: var(--orange);">&#9634;</div>
+        <h3>Screenshots</h3>
+        <p>Capture the terminal as SVG, PNG, or structured JSON. Perfect for visual testing and documentation.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon" style="background: rgba(124, 111, 247, 0.1); color: var(--accent-bright);">&#9210;</div>
+        <h3>Wait for text</h3>
+        <p>Block until a pattern appears on screen. Supports regex, timeouts, and polling intervals.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon" style="background: rgba(248, 113, 113, 0.1); color: var(--red);">&#9673;</div>
+        <h3>Record sessions</h3>
+        <p>Record as asciicast (asciinema-compatible), replayable scripts (Python/JSON/CLI), or video.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SDKs -->
+<section id="sdks">
+  <div class="container">
+    <div class="section-label">SDKs</div>
+    <div class="section-title">Your language, your way</div>
+    <div class="section-desc">Python, Node.js, Rust, or raw WebSocket &mdash; wrightty speaks them all.</div>
+    <div class="code-block-wrapper">
+      <div class="code-tabs">
+        <button class="code-tab active" onclick="showTab('python')">Python</button>
+        <button class="code-tab" onclick="showTab('node')">Node.js</button>
+        <button class="code-tab" onclick="showTab('cli')">CLI</button>
+        <button class="code-tab" onclick="showTab('raw')">Raw JSON-RPC</button>
+      </div>
+      <div class="code-content active" id="tab-python">
+<pre><span class="kw">from</span> wrightty <span class="kw">import</span> Terminal
+
+term = Terminal.<span class="fn">connect</span>()  <span class="cm"># auto-discovers running server</span>
+
+output = term.<span class="fn">run</span>(<span class="str">"cargo test"</span>)
+<span class="fn">print</span>(output)
+
+term.<span class="fn">wait_for</span>(<span class="str">"$"</span>)
+term.<span class="fn">send_keys</span>(<span class="str">"Ctrl+c"</span>)
+
+svg = term.<span class="fn">screenshot</span>(<span class="str">"svg"</span>)
+
+<span class="cm"># Record a session (asciinema-compatible)</span>
+rec = term.<span class="fn">start_session_recording</span>()
+term.<span class="fn">run</span>(<span class="str">"make build"</span>)
+result = term.<span class="fn">stop_session_recording</span>(rec)
+
+term.<span class="fn">close</span>()</pre>
+      </div>
+      <div class="code-content" id="tab-node">
+<pre><span class="kw">import</span> { Terminal } <span class="kw">from</span> <span class="str">"@moejay/wrightty"</span>;
+
+<span class="kw">const</span> term = <span class="kw">await</span> Terminal.<span class="fn">connect</span>();
+
+<span class="kw">const</span> output = <span class="kw">await</span> term.<span class="fn">run</span>(<span class="str">"cargo test"</span>);
+console.<span class="fn">log</span>(output);
+
+<span class="kw">await</span> term.<span class="fn">waitFor</span>(<span class="str">"$"</span>);
+<span class="kw">await</span> term.<span class="fn">sendKeys</span>(<span class="str">"Ctrl+c"</span>);
+
+<span class="kw">const</span> svg = <span class="kw">await</span> term.<span class="fn">screenshot</span>(<span class="str">"svg"</span>);
+
+<span class="cm">// Record a session</span>
+<span class="kw">const</span> rec = <span class="kw">await</span> term.<span class="fn">startSessionRecording</span>();
+<span class="kw">await</span> term.<span class="fn">run</span>(<span class="str">"make build"</span>);
+<span class="kw">const</span> result = <span class="kw">await</span> term.<span class="fn">stopSessionRecording</span>(rec);
+
+term.<span class="fn">close</span>();</pre>
+      </div>
+      <div class="code-content" id="tab-cli">
+<pre><span class="cm"># Start a headless server</span>
+<span class="prompt">$</span> wrightty term --headless
+
+<span class="cm"># Run commands</span>
+<span class="prompt">$</span> wrightty run <span class="str">"ls -la"</span>
+<span class="prompt">$</span> wrightty run <span class="str">"cargo test"</span> --timeout <span class="num">120</span>
+
+<span class="cm"># Read screen</span>
+<span class="prompt">$</span> wrightty read
+
+<span class="cm"># Send input</span>
+<span class="prompt">$</span> wrightty send-keys Ctrl+c
+<span class="prompt">$</span> wrightty send-keys Escape : w q Enter
+
+<span class="cm"># Screenshots</span>
+<span class="prompt">$</span> wrightty screenshot --format svg -o terminal.svg
+
+<span class="cm"># Wait for output</span>
+<span class="prompt">$</span> wrightty wait-for <span class="str">"BUILD SUCCESS"</span></pre>
+      </div>
+      <div class="code-content" id="tab-raw">
+<pre><span class="cm">// Connect with any WebSocket client</span>
+<span class="prompt">$</span> wscat -c ws://127.0.0.1:9420
+
+<span class="cm">// Read the screen</span>
+<span class="op">&rarr;</span> {<span class="str">"jsonrpc"</span>:<span class="str">"2.0"</span>,<span class="str">"id"</span>:<span class="num">1</span>,<span class="str">"method"</span>:<span class="str">"Screen.getText"</span>,
+   <span class="str">"params"</span>:{<span class="str">"sessionId"</span>:<span class="str">"0"</span>}}
+<span class="op">&larr;</span> {<span class="str">"result"</span>:{<span class="str">"text"</span>:<span class="str">"$ ls\nCargo.toml  src  tests\n$"</span>}}
+
+<span class="cm">// Send keystrokes</span>
+<span class="op">&rarr;</span> {<span class="str">"jsonrpc"</span>:<span class="str">"2.0"</span>,<span class="str">"id"</span>:<span class="num">2</span>,<span class="str">"method"</span>:<span class="str">"Input.sendKeys"</span>,
+   <span class="str">"params"</span>:{<span class="str">"sessionId"</span>:<span class="str">"0"</span>,<span class="str">"keys"</span>:[<span class="str">"Ctrl+c"</span>]}}
+<span class="op">&larr;</span> {<span class="str">"result"</span>:{}}</pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Terminal modes -->
+<section id="modes">
+  <div class="container">
+    <div class="section-label">Terminal support</div>
+    <div class="section-title">Works with what you already use</div>
+    <div class="section-desc">One unified CLI. Pick your terminal &mdash; or go headless.</div>
+    <div class="modes-grid">
+      <div class="mode-card">
+        <h3>Headless <span class="tag tag-headless">built-in</span></h3>
+        <p>Virtual PTY with no window. Uses Alacritty's terminal engine. Perfect for CI, testing, and headless automation.</p>
+        <div class="mode-cmd">wrightty term --headless</div>
+      </div>
+      <div class="mode-card">
+        <h3>Alacritty <span class="tag tag-native">native</span></h3>
+        <p>Fork with wrightty built in. Zero overhead &mdash; reads directly from Alacritty's terminal state.</p>
+        <div class="mode-cmd">wrightty term --alacritty</div>
+      </div>
+      <div class="mode-card">
+        <h3>tmux <span class="tag tag-bridge">bridge</span></h3>
+        <p>Works with any terminal running inside tmux. The universal escape hatch.</p>
+        <div class="mode-cmd">wrightty term --bridge-tmux</div>
+      </div>
+      <div class="mode-card">
+        <h3>WezTerm <span class="tag tag-bridge">bridge</span></h3>
+        <p>Translates wrightty calls into <code>wezterm cli</code> commands. Full session support.</p>
+        <div class="mode-cmd">wrightty term --bridge-wezterm</div>
+      </div>
+      <div class="mode-card">
+        <h3>Kitty <span class="tag tag-bridge">bridge</span></h3>
+        <p>Uses Kitty's remote control protocol. Requires <code>allow_remote_control yes</code>.</p>
+        <div class="mode-cmd">wrightty term --bridge-kitty</div>
+      </div>
+      <div class="mode-card">
+        <h3>Ghostty <span class="tag tag-bridge">bridge</span></h3>
+        <p>Connects via Ghostty's Unix IPC socket. Also has a native fork available.</p>
+        <div class="mode-cmd">wrightty term --bridge-ghostty</div>
+      </div>
+      <div class="mode-card">
+        <h3>Zellij <span class="tag tag-bridge">bridge</span></h3>
+        <p>Uses Zellij's CLI actions from within a running session.</p>
+        <div class="mode-cmd">wrightty term --bridge-zellij</div>
+      </div>
+      <div class="mode-card">
+        <h3>Any terminal + tmux</h3>
+        <p>foot, GNOME Terminal, Rio, or anything else &mdash; just run it inside tmux and use the tmux bridge.</p>
+        <div class="mode-cmd">tmux &amp;&amp; wrightty term --bridge-tmux</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Protocol -->
+<section id="protocol">
+  <div class="container">
+    <div class="section-label">Protocol</div>
+    <div class="section-title">7 domains. 28 methods. WebSocket JSON-RPC 2.0.</div>
+    <div style="overflow-x: auto;">
+      <table class="compat-table">
+        <thead>
+          <tr><th>Domain</th><th>Methods</th><th>Purpose</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><strong>Wrightty</strong></td><td><code>getInfo</code></td><td>Capability negotiation</td></tr>
+          <tr><td><strong>Session</strong></td><td><code>create</code> <code>destroy</code> <code>list</code> <code>getInfo</code></td><td>Lifecycle management</td></tr>
+          <tr><td><strong>Input</strong></td><td><code>sendKeys</code> <code>sendText</code> <code>sendMouse</code></td><td>Keystrokes &amp; text</td></tr>
+          <tr><td><strong>Screen</strong></td><td><code>getText</code> <code>getContents</code> <code>screenshot</code> <code>waitForText</code> ...</td><td>Read &amp; capture</td></tr>
+          <tr><td><strong>Terminal</strong></td><td><code>resize</code> <code>getSize</code> <code>setColorPalette</code> ...</td><td>Configuration</td></tr>
+          <tr><td><strong>Recording</strong></td><td><code>startSession</code> <code>startActions</code> <code>captureScreen</code> <code>startVideo</code> ...</td><td>Session recording</td></tr>
+          <tr><td><strong>Events</strong></td><td><code>subscribe</code> <code>unsubscribe</code></td><td>Screen updates, bell, title</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="margin-top: 1.5rem;"><a href="https://github.com/moejay/wrightty/blob/main/PROTOCOL.md" style="color: var(--accent-bright); text-decoration: none; font-weight: 500;">Read the full protocol spec &rarr;</a></p>
+  </div>
+</section>
+
+<!-- MCP -->
+<section id="mcp" style="padding-bottom: 3rem;">
+  <div class="container">
+    <div class="section-label">MCP Server</div>
+    <div class="section-title">Give Claude terminal superpowers</div>
+    <div class="section-desc">Wrightty ships an MCP server. Add it to Claude, Cursor, or any MCP-compatible agent.</div>
+    <div class="code-block-wrapper">
+      <div style="padding: 0.6rem 1.25rem; border-bottom: 1px solid var(--border);">
+        <span style="font-size: 0.8rem; font-weight: 600; color: var(--text-dim);">claude_desktop_config.json</span>
+      </div>
+<pre>{
+  <span class="str">"mcpServers"</span>: {
+    <span class="str">"wrightty"</span>: {
+      <span class="str">"command"</span>: <span class="str">"python3"</span>,
+      <span class="str">"args"</span>: [<span class="str">"-m"</span>, <span class="str">"wrightty.mcp_server"</span>],
+      <span class="str">"env"</span>: { <span class="str">"WRIGHTTY_SOCKET"</span>: <span class="str">"ws://127.0.0.1:9420"</span> }
+    }
+  }
+}</pre>
+    </div>
+  </div>
+</section>
+
+<!-- Footer -->
+<footer>
+  <p>
+    MIT License &middot;
+    <a href="https://github.com/moejay/wrightty">GitHub</a> &middot;
+    <a href="https://crates.io/crates/wrightty">crates.io</a> &middot;
+    <a href="https://pypi.org/project/wrightty/">PyPI</a> &middot;
+    <a href="https://www.npmjs.com/package/@moejay/wrightty">npm</a> &middot;
+    <a href="https://github.com/moejay/wrightty/blob/main/PROTOCOL.md">Protocol</a>
+  </p>
+</footer>
+
+<script>
+// Tab switching
+function showTab(name) {
+  document.querySelectorAll('.code-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.code-content').forEach(c => c.classList.remove('active'));
+  document.querySelector(`#tab-${name}`).classList.add('active');
+  event.target.classList.add('active');
+}
+
+// Terminal typing animation
+const lines = [
+  { type: 'input', text: 'wrightty term --headless &' },
+  { type: 'output', text: 'wrightty (headless) listening on ws://127.0.0.1:9420' },
+  { type: 'pause', ms: 600 },
+  { type: 'input', text: 'wrightty run "echo hello world"' },
+  { type: 'output', text: 'hello world' },
+  { type: 'pause', ms: 400 },
+  { type: 'input', text: 'wrightty send-keys Ctrl+c' },
+  { type: 'pause', ms: 300 },
+  { type: 'input', text: 'wrightty screenshot --format svg -o demo.svg' },
+  { type: 'output', text: 'Screenshot saved to demo.svg' },
+  { type: 'pause', ms: 400 },
+  { type: 'input', text: 'wrightty discover' },
+  { type: 'output', text: '  ws://127.0.0.1:9420  wrightty-server v0.1.0' },
+];
+
+const term = document.getElementById('term-demo');
+let lineIdx = 0;
+
+async function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+async function typeLine(text, el) {
+  for (const ch of text) {
+    el.textContent += ch;
+    await sleep(25 + Math.random() * 20);
+  }
+}
+
+async function runDemo() {
+  while (true) {
+    term.innerHTML = '';
+    for (const line of lines) {
+      if (line.type === 'pause') {
+        await sleep(line.ms);
+        continue;
+      }
+      const row = document.createElement('div');
+      if (line.type === 'input') {
+        const prompt = document.createElement('span');
+        prompt.className = 'prompt';
+        prompt.textContent = '$ ';
+        row.appendChild(prompt);
+        const cmd = document.createElement('span');
+        cmd.className = 'cmd';
+        row.appendChild(cmd);
+        term.appendChild(row);
+        await typeLine(line.text, cmd);
+        await sleep(200);
+      } else {
+        row.className = 'output';
+        row.textContent = line.text;
+        term.appendChild(row);
+        await sleep(100);
+      }
+    }
+    // Add cursor at end
+    const last = document.createElement('div');
+    const p = document.createElement('span');
+    p.className = 'prompt';
+    p.textContent = '$ ';
+    last.appendChild(p);
+    const c = document.createElement('span');
+    c.className = 'cursor';
+    c.innerHTML = '&nbsp;';
+    last.appendChild(c);
+    term.appendChild(last);
+    await sleep(5000);
+  }
+}
+runDemo();
+</script>
+</body>
+</html>
