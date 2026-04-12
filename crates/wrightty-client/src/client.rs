@@ -7,8 +7,11 @@ use serde::Serialize;
 use wrightty_protocol::methods::*;
 use wrightty_protocol::types::*;
 
-pub struct WrighttyClient {
-    client: WsClient,
+use crate::raw_ws::RawWsClient;
+
+enum ClientInner {
+    Jsonrpsee(WsClient),
+    Raw(RawWsClient),
 }
 
 /// Wrapper to serialize a struct as named JSON-RPC params (object).
@@ -28,28 +31,57 @@ fn to_params<T: Serialize>(val: &T) -> Result<NamedParams, Box<dyn std::error::E
     Ok(NamedParams(serde_json::to_value(val)?))
 }
 
+pub struct WrighttyClient {
+    inner: ClientInner,
+}
+
 impl WrighttyClient {
+    /// Connect to a wrightty server.
+    /// Tries strict RFC 6455 WebSocket first, falls back to a lenient raw
+    /// socket connection for servers with non-standard handshakes.
     pub async fn connect(url: &str) -> Result<Self, Box<dyn std::error::Error>> {
-        let client = WsClientBuilder::default().build(url).await?;
-        Ok(Self { client })
+        match WsClientBuilder::default().build(url).await {
+            Ok(client) => Ok(Self {
+                inner: ClientInner::Jsonrpsee(client),
+            }),
+            Err(_) => {
+                let raw = RawWsClient::connect(url).await?;
+                Ok(Self {
+                    inner: ClientInner::Raw(raw),
+                })
+            }
+        }
+    }
+
+    async fn request<T: serde::de::DeserializeOwned>(
+        &self,
+        method: &str,
+        params: impl ToRpcParams + Send,
+    ) -> Result<T, Box<dyn std::error::Error>> {
+        match &self.inner {
+            ClientInner::Jsonrpsee(client) => Ok(client.request(method, params).await?),
+            ClientInner::Raw(client) => {
+                // Convert ToRpcParams to serde_json::Value
+                let raw_params = params.to_rpc_params().map_err(|e| -> Box<dyn std::error::Error> { Box::new(e) })?;
+                let value = match raw_params {
+                    Some(raw) => serde_json::from_str(raw.get())?,
+                    None => serde_json::json!({}),
+                };
+                client.request(method, value).await
+            }
+        }
     }
 
     pub async fn authenticate(&self, password: &str) -> Result<(), Box<dyn std::error::Error>> {
         let params = AuthenticateParams {
             password: password.to_string(),
         };
-        let _: AuthenticateResult = self
-            .client
-            .request("Wrightty.authenticate", to_params(&params)?)
-            .await?;
+        let _: AuthenticateResult = self.request("Wrightty.authenticate", to_params(&params)?).await?;
         Ok(())
     }
 
     pub async fn get_info(&self) -> Result<ServerInfo, Box<dyn std::error::Error>> {
-        let result: GetInfoResult = self
-            .client
-            .request("Wrightty.getInfo", ObjectParams::new())
-            .await?;
+        let result: GetInfoResult = self.request("Wrightty.getInfo", ObjectParams::new()).await?;
         Ok(result.info)
     }
 
@@ -57,10 +89,7 @@ impl WrighttyClient {
         &self,
         params: SessionCreateParams,
     ) -> Result<String, Box<dyn std::error::Error>> {
-        let result: SessionCreateResult = self
-            .client
-            .request("Session.create", to_params(&params)?)
-            .await?;
+        let result: SessionCreateResult = self.request("Session.create", to_params(&params)?).await?;
         Ok(result.session_id)
     }
 
@@ -72,18 +101,12 @@ impl WrighttyClient {
             session_id: session_id.to_string(),
             signal: None,
         };
-        let _: SessionDestroyResult = self
-            .client
-            .request("Session.destroy", to_params(&params)?)
-            .await?;
+        let _: SessionDestroyResult = self.request("Session.destroy", to_params(&params)?).await?;
         Ok(())
     }
 
     pub async fn session_list(&self) -> Result<Vec<SessionInfo>, Box<dyn std::error::Error>> {
-        let result: SessionListResult = self
-            .client
-            .request("Session.list", ObjectParams::new())
-            .await?;
+        let result: SessionListResult = self.request("Session.list", ObjectParams::new()).await?;
         Ok(result.sessions)
     }
 
@@ -96,10 +119,7 @@ impl WrighttyClient {
             session_id: session_id.to_string(),
             keys,
         };
-        let _: serde_json::Value = self
-            .client
-            .request("Input.sendKeys", to_params(&params)?)
-            .await?;
+        let _: serde_json::Value = self.request("Input.sendKeys", to_params(&params)?).await?;
         Ok(())
     }
 
@@ -112,10 +132,7 @@ impl WrighttyClient {
             session_id: session_id.to_string(),
             text: text.to_string(),
         };
-        let _: serde_json::Value = self
-            .client
-            .request("Input.sendText", to_params(&params)?)
-            .await?;
+        let _: serde_json::Value = self.request("Input.sendText", to_params(&params)?).await?;
         Ok(())
     }
 
@@ -128,10 +145,7 @@ impl WrighttyClient {
             region: None,
             trim_trailing_whitespace: true,
         };
-        let result: ScreenGetTextResult = self
-            .client
-            .request("Screen.getText", to_params(&params)?)
-            .await?;
+        let result: ScreenGetTextResult = self.request("Screen.getText", to_params(&params)?).await?;
         Ok(result.text)
     }
 
@@ -146,10 +160,7 @@ impl WrighttyClient {
             cols,
             rows,
         };
-        let _: serde_json::Value = self
-            .client
-            .request("Terminal.resize", to_params(&params)?)
-            .await?;
+        let _: serde_json::Value = self.request("Terminal.resize", to_params(&params)?).await?;
         Ok(())
     }
 
@@ -161,10 +172,7 @@ impl WrighttyClient {
             session_id: session_id.to_string(),
             region: None,
         };
-        let result: ScreenGetContentsResult = self
-            .client
-            .request("Screen.getContents", to_params(&params)?)
-            .await?;
+        let result: ScreenGetContentsResult = self.request("Screen.getContents", to_params(&params)?).await?;
         Ok(result)
     }
 
@@ -179,10 +187,7 @@ impl WrighttyClient {
             lines,
             offset,
         };
-        let result: ScreenGetScrollbackResult = self
-            .client
-            .request("Screen.getScrollback", to_params(&params)?)
-            .await?;
+        let result: ScreenGetScrollbackResult = self.request("Screen.getScrollback", to_params(&params)?).await?;
         Ok(result)
     }
 
@@ -197,10 +202,7 @@ impl WrighttyClient {
             theme: None,
             font: None,
         };
-        let result: ScreenScreenshotResult = self
-            .client
-            .request("Screen.screenshot", to_params(&params)?)
-            .await?;
+        let result: ScreenScreenshotResult = self.request("Screen.screenshot", to_params(&params)?).await?;
         Ok(result)
     }
 
@@ -219,10 +221,7 @@ impl WrighttyClient {
             timeout: timeout_ms,
             interval: 50,
         };
-        let result: ScreenWaitForTextResult = self
-            .client
-            .request("Screen.waitForText", to_params(&params)?)
-            .await?;
+        let result: ScreenWaitForTextResult = self.request("Screen.waitForText", to_params(&params)?).await?;
         Ok(result)
     }
 
@@ -242,10 +241,7 @@ impl WrighttyClient {
             col,
             modifiers: vec![],
         };
-        let _: serde_json::Value = self
-            .client
-            .request("Input.sendMouse", to_params(&params)?)
-            .await?;
+        let _: serde_json::Value = self.request("Input.sendMouse", to_params(&params)?).await?;
         Ok(())
     }
 
@@ -256,10 +252,7 @@ impl WrighttyClient {
         let params = TerminalGetSizeParams {
             session_id: session_id.to_string(),
         };
-        let result: TerminalGetSizeResult = self
-            .client
-            .request("Terminal.getSize", to_params(&params)?)
-            .await?;
+        let result: TerminalGetSizeResult = self.request("Terminal.getSize", to_params(&params)?).await?;
         Ok((result.cols, result.rows))
     }
 }
