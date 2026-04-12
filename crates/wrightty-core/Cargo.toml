@@ -9,7 +9,7 @@ homepage.workspace = true
 description = "Core terminal engine for Wrightty"
 
 [dependencies]
-wrightty-protocol = { version = "0.2.2", path = "../wrightty-protocol" }
+wrightty-protocol = { version = "0.2.4", path = "../wrightty-protocol" }
 alacritty_terminal = "0.25.1"
 vte = { version = "0.15", features = ["ansi"] }
 portable-pty = "0.9"
