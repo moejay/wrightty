@@ -32,13 +32,13 @@ async fn check_for_update() -> Option<String> {
     // Check cache
     if let Ok(contents) = fs::read_to_string(&cache) {
         let parts: Vec<&str> = contents.splitn(2, '\n').collect();
-        if parts.len() == 2 {
-            if let Ok(ts) = parts[0].parse::<u64>() {
-                let cached_at = SystemTime::UNIX_EPOCH + Duration::from_secs(ts);
-                if SystemTime::now().duration_since(cached_at).unwrap_or_default() < CHECK_INTERVAL {
-                    let latest = parts[1].trim();
-                    return format_update_message(latest);
-                }
+        if parts.len() == 2
+            && let Ok(ts) = parts[0].parse::<u64>()
+        {
+            let cached_at = SystemTime::UNIX_EPOCH + Duration::from_secs(ts);
+            if SystemTime::now().duration_since(cached_at).unwrap_or_default() < CHECK_INTERVAL {
+                let latest = parts[1].trim();
+                return format_update_message(latest);
             }
         }
     }
@@ -90,20 +90,7 @@ async fn fetch_latest_version() -> Option<String> {
 
 /// Minimal HTTP GET using tokio TCP — no extra deps.
 async fn reqwest_lite(url: &str) -> Option<String> {
-    use tokio::io::{AsyncReadExt, AsyncWriteExt};
-    use tokio::net::TcpStream;
-
-    let host = "crates.io";
-    let path = url.strip_prefix("https://crates.io")?;
-
-    let mut stream = TcpStream::connect(format!("{host}:443")).await.ok()?;
-
-    // For simplicity, use HTTP (not HTTPS) via the API which redirects.
-    // Actually crates.io requires HTTPS. Let's just use a simple TCP approach
-    // with the plain HTTP API endpoint that returns JSON.
-    drop(stream);
-
-    // Use a spawned process instead for simplicity (curl is ubiquitous)
+    // Use a spawned process for simplicity (curl is ubiquitous)
     let output = tokio::process::Command::new("curl")
         .args(["-sf", "-H", "User-Agent: wrightty-cli", "--max-time", "3", url])
         .output()
