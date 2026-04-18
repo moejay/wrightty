@@ -2378,7 +2378,7 @@ dependencies = [
 
 [[package]]
 name = "wrightty"
-version = "0.2.4"
+version = "0.2.5"
 dependencies = [
  "anyhow",
  "clap",
@@ -2401,7 +2401,7 @@ dependencies = [
 
 [[package]]
 name = "wrightty-bridge-ghostty"
-version = "0.2.4"
+version = "0.2.5"
 dependencies = [
  "anyhow",
  "clap",
@@ -2418,11 +2418,12 @@ dependencies = [
 
 [[package]]
 name = "wrightty-bridge-kitty"
-version = "0.2.4"
+version = "0.2.5"
 dependencies = [
  "anyhow",
  "clap",
  "jsonrpsee",
+ "regex",
  "serde",
  "serde_json",
  "thiserror 1.0.69",
@@ -2434,11 +2435,12 @@ dependencies = [
 
 [[package]]
 name = "wrightty-bridge-tmux"
-version = "0.2.4"
+version = "0.2.5"
 dependencies = [
  "anyhow",
  "clap",
  "jsonrpsee",
+ "regex",
  "serde",
  "serde_json",
  "thiserror 1.0.69",
@@ -2450,11 +2452,12 @@ dependencies = [
 
 [[package]]
 name = "wrightty-bridge-wezterm"
-version = "0.2.4"
+version = "0.2.5"
 dependencies = [
  "anyhow",
  "clap",
  "jsonrpsee",
+ "regex",
  "serde",
  "serde_json",
  "thiserror 1.0.69",
@@ -2466,11 +2469,12 @@ dependencies = [
 
 [[package]]
 name = "wrightty-bridge-zellij"
-version = "0.2.4"
+version = "0.2.5"
 dependencies = [
  "anyhow",
  "clap",
  "jsonrpsee",
+ "regex",
  "serde",
  "serde_json",
  "tempfile",
@@ -2483,7 +2487,7 @@ dependencies = [
 
 [[package]]
 name = "wrightty-client"
-version = "0.2.4"
+version = "0.2.5"
 dependencies = [
  "jsonrpsee",
  "serde",
@@ -2494,7 +2498,7 @@ dependencies = [
 
 [[package]]
 name = "wrightty-core"
-version = "0.2.4"
+version = "0.2.5"
 dependencies = [
  "alacritty_terminal",
  "base64",
@@ -2510,7 +2514,7 @@ dependencies = [
 
 [[package]]
 name = "wrightty-protocol"
-version = "0.2.4"
+version = "0.2.5"
 dependencies = [
  "serde",
  "serde_json",
@@ -2518,7 +2522,7 @@ dependencies = [
 
 [[package]]
 name = "wrightty-server"
-version = "0.2.4"
+version = "0.2.5"
 dependencies = [
  "anyhow",
  "clap",
@@ -2535,7 +2539,7 @@ dependencies = [
 
 [[package]]
 name = "wrightty-tests"
-version = "0.2.4"
+version = "0.2.5"
 dependencies = [
  "jsonrpsee",
  "serde_json",

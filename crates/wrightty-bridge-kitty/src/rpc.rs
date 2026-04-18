@@ -462,6 +462,93 @@ pub fn build_rpc_module(name: Option<String>, password: Option<String>) -> anyho
         })?;
     }
 
+    // --- Screen.waitForText ---
+    {
+        let password = password.clone();
+        let authenticated = Arc::clone(&authenticated);
+        module.register_async_method("Screen.waitForText", move |params, _state, ext| {
+            let password = password.clone();
+            let authenticated = Arc::clone(&authenticated);
+            async move {
+                if password.is_some() {
+                    let conn_id = ext.get::<jsonrpsee::server::ConnectionId>().map(|c| c.0).unwrap_or(0);
+                    if !authenticated.lock().unwrap().contains(&conn_id) {
+                        return Err(proto_err(error::NOT_AUTHENTICATED, "not authenticated"));
+                    }
+                }
+
+                let p: ScreenWaitForTextParams = params.parse()?;
+                let window_id = parse_window_id(&p.session_id)?;
+
+                let re = if p.is_regex {
+                    Some(
+                        regex::Regex::new(&p.pattern)
+                            .map_err(|_| proto_err(error::INVALID_PATTERN, "invalid regex pattern"))?,
+                    )
+                } else {
+                    None
+                };
+
+                let start = std::time::Instant::now();
+                let deadline = start + std::time::Duration::from_millis(p.timeout);
+                let interval = std::time::Duration::from_millis(p.interval.max(10));
+
+                loop {
+                    let text = kitty::get_text(window_id)
+                        .await
+                        .map_err(|e| proto_err(error::SESSION_NOT_FOUND, e.to_string()))?;
+
+                    let matched = if let Some(ref re) = re {
+                        re.is_match(&text)
+                    } else {
+                        text.contains(&p.pattern)
+                    };
+
+                    if matched {
+                        let elapsed = start.elapsed().as_millis() as u64;
+                        let matches = if let Some(ref re) = re {
+                            re.find_iter(&text)
+                                .map(|m| TextMatch {
+                                    text: m.as_str().to_string(),
+                                    row: 0,
+                                    col: 0,
+                                    length: m.len() as u32,
+                                })
+                                .collect()
+                        } else {
+                            text.match_indices(p.pattern.as_str())
+                                .map(|(_, s)| TextMatch {
+                                    text: s.to_string(),
+                                    row: 0,
+                                    col: 0,
+                                    length: s.len() as u32,
+                                })
+                                .collect()
+                        };
+
+                        return serde_json::to_value(ScreenWaitForTextResult {
+                            found: true,
+                            matches,
+                            elapsed,
+                        })
+                        .map_err(|e| proto_err(-32603, e.to_string()));
+                    }
+
+                    if std::time::Instant::now() >= deadline {
+                        return serde_json::to_value(ScreenWaitForTextResult {
+                            found: false,
+                            matches: vec![],
+                            elapsed: p.timeout,
+                        })
+                        .map_err(|e| proto_err(-32603, e.to_string()));
+                    }
+
+                    tokio::time::sleep(interval).await;
+                }
+            }
+        })?;
+    }
+
     // --- Screen.getContents (not supported) ---
     {
         let password = password.clone();

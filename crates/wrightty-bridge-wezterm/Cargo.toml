@@ -13,7 +13,7 @@ name = "wrightty-bridge-wezterm"
 path = "src/main.rs"
 
 [dependencies]
-wrightty-protocol = { version = "0.2.4", path = "../wrightty-protocol" }
+wrightty-protocol = { version = "0.2.5", path = "../wrightty-protocol" }
 
 jsonrpsee = { version = "0.24", features = ["server"] }
 tokio = { version = "1", features = ["full"] }
@@ -24,3 +24,4 @@ anyhow = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "1"
+regex = "1"

@@ -449,6 +449,27 @@ pub fn build_rpc_module(name: Option<String>, password: Option<String>) -> anyho
     {
         let password = password.clone();
         let authenticated = Arc::clone(&authenticated);
+        module.register_async_method("Screen.waitForText", move |_params, _state, ext| {
+            let password = password.clone();
+            let authenticated = Arc::clone(&authenticated);
+            async move {
+                if password.is_some() {
+                    let conn_id = ext.get::<jsonrpsee::server::ConnectionId>().map(|c| c.0).unwrap_or(0);
+                    if !authenticated.lock().unwrap().contains(&conn_id) {
+                        return Err(proto_err(error::NOT_AUTHENTICATED, "not authenticated"));
+                    }
+                }
+                Err::<serde_json::Value, _>(not_supported(
+                    "Screen.waitForText — Ghostty does not expose a screen-dump IPC; \
+                     use wrightty-server with ghostty-native support instead",
+                ))
+            }
+        })?;
+    }
+
+    {
+        let password = password.clone();
+        let authenticated = Arc::clone(&authenticated);
         module.register_async_method("Screen.getContents", move |_params, _state, ext| {
             let password = password.clone();
             let authenticated = Arc::clone(&authenticated);
